@@ -30,6 +30,7 @@ def is_valid_email(email: str) -> bool:
 def get_back_cancel_keyboard():
     keyboard = InlineKeyboardMarkup(row_width=2)
     keyboard.insert(InlineKeyboardButton("❌ Отмена", callback_data="cancel"))
+    keyboard.insert(InlineKeyboardButton("📝 Назад", callback_data="back"))
     return keyboard
 
 async def handle_forwarded_message(message: types.Message, state: FSMContext):
@@ -194,11 +195,13 @@ async def get_message(message: types.Message, state: FSMContext):
 async def back_handler(callback: types.CallbackQuery, state: FSMContext):
     current_state = await state.get_state()
     if current_state == SupportStates.GET_EMAIL.state:
+        keyboard = get_back_cancel_keyboard()
         await state.set_state(SupportStates.GET_NAME.state)
-        await callback.message.edit_text("Пожалуйста, введите ваше имя:")
+        await callback.message.edit_text("Пожалуйста, введите ваше имя:", reply_markup=keyboard)
     elif current_state == SupportStates.GET_MESSAGE.state:
+        keyboard = get_back_cancel_keyboard()
         await state.set_state(SupportStates.GET_EMAIL.state)
-        await callback.message.edit_text("Введите ваш email:")
+        await callback.message.edit_text("Введите ваш email:", reply_markup=keyboard)
     await callback.answer()
 
 # Обработчики кнопок
