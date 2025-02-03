@@ -21,9 +21,8 @@ class SupportStates(StatesGroup):
 async def handle_forwarded_message(message: types.Message, state: FSMContext):
     # Проверяем, что сообщение отправлено администратором
     if message.from_user.id not in ADMIN_IDS:
-        await message.answer("Эта функция доступна только администраторам.")
+        await message.answer("Эта функция доступна только сотрудникам ТП.")
         return
-
 
     # Проверяем, что сообщение переслано
     if not message.forward_from:
@@ -32,35 +31,24 @@ async def handle_forwarded_message(message: types.Message, state: FSMContext):
 
     # Парсим информацию из пересланного сообщения
     user_id = message.forward_from.id
+    user_username = message.forward_from.username
     user_name = message.forward_from.full_name
     forwarded_text = message.text or message.caption  # Текст или подпись к медиа
     admin_id = message.from_user.id
     admin_name = message.from_user.full_name  # Имя администратора
-
-    # # Сохраняем данные администратора в FSM
-    # await state.update_data(admin_id=admin_id, admin_name=admin_name)
 
     # Проверяем, есть ли текст в сообщении
     if not forwarded_text:
         await message.answer("Пересланное сообщение не содержит текста.")
         return
 
-    # Сохраняем заявку в базу данных
+    #Сохраняем заявку в базу данных
     conn = await create_connection()
     await conn.execute(
-        "INSERT INTO support_requests (user_id, name, message, admin_id, admin_name) VALUES ($1, $2, $3, $4, $5)",
-        user_id, user_name, forwarded_text, admin_id, admin_name
+        "INSERT INTO support_requests (user_id, user_username, name, message, admin_id, admin_name) VALUES ($1, $2, $3, $4, $5, $6)",
+        user_id, user_username, user_name, forwarded_text, admin_id, admin_name
     )
     await conn.close()
-
-    # # Формируем текст письма
-    # email_text = (
-    #     f"Новая заявка от {user_name} (ID: {user_id}):\n\n"
-    #     f"{forwarded_text}"
-    # )
-    #
-    # # Отправляем письмо
-    # send_email("Новая заявка в поддержку", email_text)
 
     # Уведомление администратору
     admin_text = (
@@ -86,6 +74,7 @@ async def handle_forwarded_message(message: types.Message, state: FSMContext):
         f"Сотрудник ТП завел заявку через чат.<br><br>"
         f"Имя: <b>{user_name}</b><br>"
         f"ID пользователя: <b>{user_id}</b><br>"
+        f"Ссылка в tg: <b>https://t.me/{user_username}</b><br>"
         # f"Email: <b>{email}</b><br>"
         f"Текст обращения: <b>{forwarded_text}</b><br><br>"
 
@@ -99,8 +88,6 @@ async def handle_forwarded_message(message: types.Message, state: FSMContext):
                is_html=True)
 
     await message.answer("Ваша заявка отправлена. Спасибо!")
-
-
 
 # Валидация email
 def is_valid_email(email: str) -> bool:
