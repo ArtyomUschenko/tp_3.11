@@ -34,6 +34,10 @@ dp.register_message_handler(support.get_email, state=support.SupportStates.GET_E
 dp.register_message_handler(support.get_message, state=support.SupportStates.GET_MESSAGE)
 dp.register_message_handler(handle_forwarded_message, is_forwarded=True)  # Новый обработчик
 
+from handlers.support import register_admin_handlers
+register_admin_handlers(dp)
+
+
 # Инициализация базы данных при запуске
 async def on_startup(dp):
     await create_tables()

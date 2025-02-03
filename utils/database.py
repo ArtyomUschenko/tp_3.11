@@ -26,4 +26,13 @@ async def create_tables():
             created_at TIMESTAMP DEFAULT NOW()
         );
     """)
+    await conn.execute("""
+        CREATE TABLE IF NOT EXISTS support_responses (
+            id SERIAL PRIMARY KEY,
+            request_id INT REFERENCES support_requests(id),
+            admin_id BIGINT NOT NULL,
+            message TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT NOW()
+        );
+    """)
     await conn.close()

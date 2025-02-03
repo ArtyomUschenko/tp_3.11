@@ -1,11 +1,16 @@
 import re
-from aiogram import types
+from aiogram import types, Dispatcher
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from utils.email_sender import send_email
 from utils.database import create_connection
 from date.config  import ADMIN_ID, ADMIN_IDS
 import logging
+
+# Состояния для администратора
+class AdminStates(StatesGroup):
+    WAITING_FOR_REPLY = State()
 
 # Состояния для FSM
 class SupportStates(StatesGroup):
@@ -144,10 +149,20 @@ async def get_message(message: types.Message, state: FSMContext):
         f"📝 Сообщение:\n{problem}"
     )
 
+    # Создаем инлайн-кнопки
+    keyboard = InlineKeyboardMarkup(row_width=2)
+    keyboard.add(
+        InlineKeyboardButton(
+            "✉️ Ответить",
+            callback_data=f"reply_{user_id}"
+        )
+    )
+
     try:
         await message.bot.send_message(
             chat_id=ADMIN_ID,
-            text=admin_text
+            text=admin_text,
+            reply_markup=keyboard
         )
     except Exception as e:
         logging.error(f"Ошибка отправки уведомления админу: {e}")
@@ -167,3 +182,46 @@ async def get_message(message: types.Message, state: FSMContext):
 
     await message.answer("Ваша заявка отправлена. Спасибо!")
     await state.finish()
+
+
+# Обработчики кнопок
+async def handle_admin_callback(callback: types.CallbackQuery, state: FSMContext):
+    action, data = callback.data.split("_")
+
+    if action == "reply":
+        await state.update_data(target_user_id=data)
+        await callback.message.answer("Введите ваш ответ:")
+        await AdminStates.WAITING_FOR_REPLY.set()
+
+    elif action == "view":
+        # Здесь можно добавить логику просмотра заявки из БД
+        await callback.answer("Заявка будет показана здесь", show_alert=True)
+
+    await callback.answer()
+
+async def handle_admin_reply(message: types.Message, state: FSMContext):
+    user_data = await state.get_data()
+    target_user_id = user_data.get("target_user_id")
+
+    try:
+        await message.bot.send_message(
+            chat_id=target_user_id,
+            text=f"📨 Ответ от поддержки:\n\n{message.text}"
+        )
+        await message.answer("✅ Ответ успешно отправлен!")
+    except Exception as e:
+        await message.answer("❌ Ошибка отправки ответа")
+        logging.error(f"Ошибка отправки ответа: {e}")
+
+    await state.finish()
+
+# Регистрация обработчиков
+def register_admin_handlers(dp: Dispatcher):
+    dp.register_callback_query_handler(
+        handle_admin_callback,
+        lambda c: c.data.startswith(("reply_", "view_"))
+    )
+    dp.register_message_handler(
+        handle_admin_reply,
+        state=AdminStates.WAITING_FOR_REPLY
+    )
