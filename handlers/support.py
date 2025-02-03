@@ -30,7 +30,7 @@ def is_valid_email(email: str) -> bool:
 def get_back_cancel_keyboard():
     keyboard = InlineKeyboardMarkup(row_width=2)
     keyboard.insert(InlineKeyboardButton("❌ Отмена", callback_data="cancel"))
-    keyboard.insert(InlineKeyboardButton("📝 Назад", callback_data="back"))
+    keyboard.insert(InlineKeyboardButton("↩️ Назад", callback_data="back"))
     return keyboard
 
 async def handle_forwarded_message(message: types.Message, state: FSMContext):
@@ -109,12 +109,17 @@ async def handle_forwarded_message(message: types.Message, state: FSMContext):
 async def cancel_handler(callback: types.CallbackQuery, state: FSMContext):
     await state.finish()
     await callback.message.edit_text("Операция отменена.")
+    await callback.message.answer(
+        "Используйте команду /support, чтобы отправить заявку в техническую поддержку.",
+        reply_markup=None  # Убираем клавиатуру
+    )
     await callback.answer()
 
 # Начало заполнения заявки
 async def start_support(message: types.Message, state: FSMContext):
-    keyboard = get_back_cancel_keyboard()
-    await message.answer("Пожалуйста, введите ваше имя:", reply_markup=keyboard)
+    cancel_keyboard = InlineKeyboardMarkup(row_width=1)
+    cancel_keyboard.add(InlineKeyboardButton("❌ Отмена", callback_data="cancel"))
+    await message.answer("Пожалуйста, введите ваше имя:", reply_markup=cancel_keyboard)
     await state.set_state(SupportStates.GET_NAME.state)
 
 async def get_name(message: types.Message, state: FSMContext):
