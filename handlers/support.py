@@ -138,8 +138,15 @@ async def get_email(message: types.Message, state: FSMContext):
     await message.answer("Опишите вашу проблему:", reply_markup=keyboard)
     await state.set_state(SupportStates.GET_MESSAGE.state)
 
+
+    username = message.from_user.username
+
 async def get_message(message: types.Message, state: FSMContext):
+    # Извлекаем username пользователя
+    username = message.from_user.username
+
     user_data = await state.get_data()
+    username = username
     name = user_data.get("name")
     email = user_data.get("email")
     problem = message.text
@@ -148,8 +155,8 @@ async def get_message(message: types.Message, state: FSMContext):
     # Сохраняем заявку в базу данных
     conn = await create_connection()
     await conn.execute(
-        "INSERT INTO support_requests (user_id, name, email, message) VALUES ($1, $2, $3, $4)",
-        message.from_user.id, name, email, problem
+        "INSERT INTO support_requests (user_id, name, user_username, email, message) VALUES ($1, $2, $3, $4, $5)",
+        message.from_user.id,  name, username, email, problem
     )
     await conn.close()
 
@@ -157,6 +164,7 @@ async def get_message(message: types.Message, state: FSMContext):
     admin_text = (
         "🚨 Новая заявка в поддержку!\n"
         f"👤 Пользователь: {user_id}\n"
+        f"👤 Ссылка в tg: @{username if username else 'Не указан'}\n"
         f"📛 Имя: {name}\n"
         f"📧 Email: {email}\n"
         f"📝 Сообщение:\n{problem}"
@@ -186,6 +194,7 @@ async def get_message(message: types.Message, state: FSMContext):
         f"Пользователь оставил запрос в техническую поддержку через чат.<br><br>"
         f"Имя: <b>{name}</b><br>"
         f"Email: <b>{email}</b><br>"
+        f"Ссылка в tg: <b>https://t.me/{username if username else 'Не_указан'}</b><br>"
         f"Текст обращения: <b>{problem}</b>"
     )
 
