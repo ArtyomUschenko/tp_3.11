@@ -9,6 +9,7 @@ from handlers import start, support
 from utils.database import create_tables
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from handlers.support import handle_forwarded_message
+from utils.thottling import ThrottlingMiddleware
 
 
 # Настройка логгирования
@@ -44,4 +45,5 @@ async def on_startup(dp):
 
 # Запуск бота
 if __name__ == "__main__":
+    dp.middleware.setup(ThrottlingMiddleware())
     executor.start_polling(dp, skip_updates=True, on_startup=on_startup)

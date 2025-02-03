@@ -1,6 +1,6 @@
 from aiogram import types
 from aiogram.types import InputFile
-
+from utils.rate_limit import rate_limit
 
 #
 # async def start(massage: types.Message):
@@ -8,6 +8,7 @@ from aiogram.types import InputFile
 #     await massage.answer("Привет! Я бот технической поддержки. Используйте команду /support")
 #
 
+@rate_limit(limit=10, key='/start')
 async def start(message: types.Message):
     photo = "./img/tshed_logo.png"
 
