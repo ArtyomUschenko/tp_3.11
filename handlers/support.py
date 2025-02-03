@@ -129,8 +129,8 @@ async def get_forwarded_email(message: types.Message, state: FSMContext):
         f"Имя: <b>{data['user_name']}</b><br>"
         f"Email: <b>{data.get('email', 'не указан')}</b><br>"
         f"ID пользователя: <b>{data['user_id']}</b><br>"
-        f"Ссылка в tg: <b>https://t.me/{data['user_username']}</b><br><br>"
-        f"Текст обращения: <b>{data['forwarded_text']}</b><br>"
+        f"Ссылка в tg: <b>https://t.me/{data['user_username']}</b><br>"
+        f"Текст обращения: <b>{data['forwarded_text']}</b><br><br>"
         
         f"<i>Сообщение переслал сотрудник ТП:</i><br>"
         f"ID: {data['admin_id']}<br>"
@@ -272,11 +272,10 @@ async def process_forwarded_request(message: types.Message, state: FSMContext):
     await conn.execute(
         """INSERT INTO support_requests 
         (user_id, user_username, name, message, admin_id, admin_name) 
-        VALUES ($1, $2, $3, $4, $5, $6, $7)""",
+        VALUES ($1, $2, $3, $4, $5, $6)""",
         data['user_id'],
         data['user_username'],
         data['user_name'],
-        None,  # Явно указываем NULL
         data['forwarded_text'],
         data['admin_id'],
         data['admin_name']
@@ -307,8 +306,8 @@ async def process_forwarded_request(message: types.Message, state: FSMContext):
         f"Имя: <b>{data['user_name']}</b><br>"
         f"Email: <b>{data.get('email', 'не указан')}</b><br>"
         f"ID пользователя: <b>{data['user_id']}</b><br>"
-        f"Ссылка в tg: <b>https://t.me/{data['user_username']}</b><br><br>"
-        f"Текст обращения: <b>{data['forwarded_text']}</b><br>"
+        f"Ссылка в tg: <b>https://t.me/{data['user_username']}</b><br>"
+        f"Текст обращения: <b>{data['forwarded_text']}</b><br><br>"
 
         f"<i>Сообщение переслал сотрудник ТП:</i><br>"
         f"ID: {data['admin_id']}<br>"
@@ -321,6 +320,7 @@ async def process_forwarded_request(message: types.Message, state: FSMContext):
 
     await message.answer("Ваша заявка отправлена. Спасибо!")
     await state.finish()
+
 
 
 # Обработчики кнопок
