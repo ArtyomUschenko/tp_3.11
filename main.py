@@ -34,6 +34,8 @@ dp.register_message_handler(support.get_name, state=support.SupportStates.GET_NA
 dp.register_message_handler(support.get_email, state=support.SupportStates.GET_EMAIL)
 dp.register_message_handler(support.get_message, state=support.SupportStates.GET_MESSAGE)
 dp.register_message_handler(handle_forwarded_message, is_forwarded=True)  # Новый обработчик
+dp.register_callback_query_handler(support.cancel_handler, lambda c: c.data == "cancel", state="*")
+dp.register_callback_query_handler(support.back_handler, lambda c: c.data == "back", state="*")
 
 from handlers.support import register_admin_handlers
 register_admin_handlers(dp)

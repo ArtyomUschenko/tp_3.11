@@ -10,11 +10,11 @@ from utils.rate_limit import rate_limit
 
 @rate_limit(limit=10, key='/start')
 async def start(message: types.Message):
-    photo = "./img/tshed_logo.png"
+    photo = "./img/tshed_logo.jpg"
 
     # Текст сообщения
     welcome_text = (
-        "👋 Привет! Я бот технической поддержки.\n\n"
+        "👋 Привет! Я бот технической поддержки ЦХЭД.\n\n"
         "Используйте команду /support, чтобы отправить заявку."
     )
 

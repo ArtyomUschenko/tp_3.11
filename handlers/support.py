@@ -8,6 +8,9 @@ from utils.database import create_connection
 from date.config  import ADMIN_ID, ADMIN_IDS
 import logging
 
+# Настройка логгера
+logging.basicConfig(level=logging.INFO)
+
 # Состояния для администратора
 class AdminStates(StatesGroup):
     WAITING_FOR_REPLY = State()
@@ -17,6 +20,17 @@ class SupportStates(StatesGroup):
     GET_NAME = State()
     GET_EMAIL = State()
     GET_MESSAGE = State()
+
+# Валидация email
+def is_valid_email(email: str) -> bool:
+    pattern = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
+    return re.match(pattern, email) is not None
+
+# Создание клавиатуры с кнопками "Назад" и "Отмена"
+def get_back_cancel_keyboard():
+    keyboard = InlineKeyboardMarkup(row_width=2)
+    keyboard.insert(InlineKeyboardButton("❌ Отмена", callback_data="cancel"))
+    return keyboard
 
 async def handle_forwarded_message(message: types.Message, state: FSMContext):
     # Проверяем, что сообщение отправлено администратором
@@ -89,18 +103,23 @@ async def handle_forwarded_message(message: types.Message, state: FSMContext):
 
     await message.answer("Ваша заявка отправлена. Спасибо!")
 
-# Валидация email
-def is_valid_email(email: str) -> bool:
-    pattern = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
-    return re.match(pattern, email) is not None
 
+# Обработчик кнопки "Отмена"
+async def cancel_handler(callback: types.CallbackQuery, state: FSMContext):
+    await state.finish()
+    await callback.message.edit_text("Операция отменена.")
+    await callback.answer()
+
+# Начало заполнения заявки
 async def start_support(message: types.Message, state: FSMContext):
-    await message.answer("Пожалуйста, введите ваше имя:")
+    keyboard = get_back_cancel_keyboard()
+    await message.answer("Пожалуйста, введите ваше имя:", reply_markup=keyboard)
     await state.set_state(SupportStates.GET_NAME.state)
 
 async def get_name(message: types.Message, state: FSMContext):
     await state.update_data(name=message.text)
-    await message.answer("Введите ваш email:")
+    keyboard = get_back_cancel_keyboard()
+    await message.answer("Введите ваш email:", reply_markup=keyboard)
     await state.set_state(SupportStates.GET_EMAIL.state)
 
 async def get_email(message: types.Message, state: FSMContext):
@@ -109,7 +128,8 @@ async def get_email(message: types.Message, state: FSMContext):
         return
 
     await state.update_data(email=message.text)
-    await message.answer("Опишите вашу проблему:")
+    keyboard = get_back_cancel_keyboard()
+    await message.answer("Опишите вашу проблему:", reply_markup=keyboard)
     await state.set_state(SupportStates.GET_MESSAGE.state)
 
 async def get_message(message: types.Message, state: FSMContext):
@@ -170,6 +190,16 @@ async def get_message(message: types.Message, state: FSMContext):
     await message.answer("Ваша заявка отправлена. Спасибо!")
     await state.finish()
 
+# Обработчик кнопки "Назад"
+async def back_handler(callback: types.CallbackQuery, state: FSMContext):
+    current_state = await state.get_state()
+    if current_state == SupportStates.GET_EMAIL.state:
+        await state.set_state(SupportStates.GET_NAME.state)
+        await callback.message.edit_text("Пожалуйста, введите ваше имя:")
+    elif current_state == SupportStates.GET_MESSAGE.state:
+        await state.set_state(SupportStates.GET_EMAIL.state)
+        await callback.message.edit_text("Введите ваш email:")
+    await callback.answer()
 
 # Обработчики кнопок
 async def handle_admin_callback(callback: types.CallbackQuery, state: FSMContext):
