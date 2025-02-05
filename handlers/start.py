@@ -1,6 +1,7 @@
 from aiogram import types
 from aiogram.types import InputFile
 from middlewares.rate_limit import rate_limit
+from keyboards import inline
 
 #
 # async def start(massage: types.Message):
@@ -14,13 +15,12 @@ async def start(message: types.Message):
 
     # Текст сообщения
     welcome_text = (
-        "👋 Привет! Я бот технической поддержки ЦХЭД.\n\n"
-        "Используйте команду /support, чтобы отправить заявку."
+        "\n\n👋 Привет! Я бот технической поддержки ЦХЭД.\n\n"
     )
 
     # Отправляем изображение и текст
     with open(photo, "rb") as photo:
         await message.answer_photo(
             photo=InputFile(photo),
-            caption=welcome_text
+            caption=welcome_text, reply_markup=inline.get_keyboard_start_menu()
         )

@@ -38,6 +38,7 @@ dp.register_callback_query_handler(support.handle_admin_callback,lambda c: c.dat
 dp.register_message_handler(support.handle_admin_reply, state=admin_state.AdminStates.WAITING_FOR_REPLY)
 dp.register_callback_query_handler(support.skip_email,lambda c: c.data == "skip_email",state=user_state.SupportStates.GET_EMAIL_FORWARDED)
 dp.register_message_handler(callback_admin.get_forwarded_email,state=user_state.SupportStates.GET_EMAIL_FORWARDED)
+dp.register_callback_query_handler(support.start_support_handler, lambda c: c.data == "start_support")
 
 # Уведомление об остановки бота
 async def on_shutdown(app):
