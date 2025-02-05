@@ -3,6 +3,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from date.config  import EMAIL_HOST, EMAIL_PORT, EMAIL_USER, EMAIL_PASSWORD, EMAIL_RECEIVER
 
+# Формирования и отправка письма на почту
 def send_email(subject: str, body: str, is_html: bool= False):
     # Создаем сообщение
     msg = MIMEMultipart()
@@ -15,7 +16,6 @@ def send_email(subject: str, body: str, is_html: bool= False):
         msg.attach(MIMEText(body, "html"))
     else:
         msg.attach(MIMEText(body, "plain"))
-
 
 
     # Отправляем письмо

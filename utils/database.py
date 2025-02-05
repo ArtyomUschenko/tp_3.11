@@ -1,8 +1,8 @@
 import asyncpg
 from date.config import POSTGRES_HOST, POSTGRES_PORT, POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB
 
+#Создает подключение к базе данных
 async def create_connection():
-    """Создает подключение к базе данных."""
     return await asyncpg.connect(
         host=POSTGRES_HOST,
         port=POSTGRES_PORT,
@@ -11,8 +11,8 @@ async def create_connection():
         database=POSTGRES_DB,
     )
 
+#Создает таблицы в базе данных, если они не существуют
 async def create_tables():
-    """Создает таблицы в базе данных, если они не существуют."""
     conn = await create_connection()
     await conn.execute("""
         CREATE TABLE IF NOT EXISTS support_requests (

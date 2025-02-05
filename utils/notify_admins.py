@@ -4,7 +4,7 @@ from aiogram import Dispatcher
 
 from date.config import ADMIN_IDS
 
-
+#Уведомления админа при запуске или остановке бота
 async def on_startup_notify(dp: Dispatcher):
     for admin in ADMIN_IDS:
         try:

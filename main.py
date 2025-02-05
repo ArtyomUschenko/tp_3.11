@@ -1,20 +1,20 @@
 import logging
-from aiogram import Bot, Dispatcher, types
+from aiogram import Bot, Dispatcher
 from aiogram.contrib.middlewares.logging import LoggingMiddleware
-from aiogram.dispatcher import FSMContext
 from aiogram.utils import executor
 from date.config import TELEGRAM_TOKEN
-from handlers import start, support
+from handlers import start, support, callback_admin
 from utils.database import create_tables
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from handlers.callback_admin import handle_forwarded_message
-from utils.thottling import ThrottlingMiddleware
+from middlewares.thottling import ThrottlingMiddleware
 from utils.notify_admins import on_startup_notify, on_shutdown_notify
+from states import user_state, admin_state
+from utils.set_bot_commands import set_default_commands
 
 # Настройка логгирования
 logging.basicConfig(
     level=logging.INFO)
-
 logger = logging.getLogger(__name__)
 logger = logging.LoggerAdapter(logger, {"app": "тестовое приложение"})
 logger.info("Программа стартует")
@@ -25,23 +25,19 @@ bot =Bot(TELEGRAM_TOKEN)
 dp = Dispatcher(bot, storage=MemoryStorage())
 dp.middleware.setup(LoggingMiddleware())
 
-
 # Регистрация обработчиков
 dp.register_message_handler(start.start, commands=["start"])
 dp.register_message_handler(support.start_support, commands=["support"], state="*")
-dp.register_message_handler(support.get_name, state=support.SupportStates.GET_NAME)
-dp.register_message_handler(support.get_email, state=support.SupportStates.GET_EMAIL)
-dp.register_message_handler(support.get_message, state=support.SupportStates.GET_MESSAGE)
+dp.register_message_handler(support.get_name, state=user_state.SupportStates.GET_NAME)
+dp.register_message_handler(support.get_email, state=user_state.SupportStates.GET_EMAIL)
+dp.register_message_handler(support.get_message, state=user_state.SupportStates.GET_MESSAGE)
 dp.register_message_handler(handle_forwarded_message, is_forwarded=True)  # Новый обработчик
 dp.register_callback_query_handler(support.cancel_handler, lambda c: c.data == "cancel", state="*")
 dp.register_callback_query_handler(support.back_handler, lambda c: c.data == "back", state="*")
-
-from handlers.support import register_admin_handlers
-register_admin_handlers(dp)
-
-from handlers.callback_admin import register_admin
-register_admin(dp)
-
+dp.register_callback_query_handler(support.handle_admin_callback,lambda c: c.data.startswith(("reply_", "view_")))
+dp.register_message_handler(support.handle_admin_reply, state=admin_state.AdminStates.WAITING_FOR_REPLY)
+dp.register_callback_query_handler(support.skip_email,lambda c: c.data == "skip_email",state=user_state.SupportStates.GET_EMAIL_FORWARDED)
+dp.register_message_handler(callback_admin.get_forwarded_email,state=user_state.SupportStates.GET_EMAIL_FORWARDED)
 
 # Уведомление об остановки бота
 async def on_shutdown(app):
@@ -49,6 +45,7 @@ async def on_shutdown(app):
 
 # Инициализация базы данных при запуске
 async def on_startup(dp):
+    await set_default_commands(dp)
     await on_startup_notify(dp)
     await create_tables()
 

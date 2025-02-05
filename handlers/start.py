@@ -1,6 +1,6 @@
 from aiogram import types
 from aiogram.types import InputFile
-from utils.rate_limit import rate_limit
+from middlewares.rate_limit import rate_limit
 
 #
 # async def start(massage: types.Message):
