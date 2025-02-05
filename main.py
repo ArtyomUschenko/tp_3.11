@@ -2,15 +2,14 @@ import logging
 from aiogram import Bot, Dispatcher, types
 from aiogram.contrib.middlewares.logging import LoggingMiddleware
 from aiogram.dispatcher import FSMContext
-#from aiogram.dispatcher.filters.state import State, StatesGroup # ???
 from aiogram.utils import executor
 from date.config import TELEGRAM_TOKEN
 from handlers import start, support
 from utils.database import create_tables
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
-from handlers.support import handle_forwarded_message
+from handlers.callback_admin import handle_forwarded_message
 from utils.thottling import ThrottlingMiddleware
-
+from utils.notify_admins import on_startup_notify, on_shutdown_notify
 
 # Настройка логгирования
 logging.basicConfig(
@@ -24,8 +23,8 @@ logger.info("Программа завершила работу")
 # Иницилизация бота
 bot =Bot(TELEGRAM_TOKEN)
 dp = Dispatcher(bot, storage=MemoryStorage())
-# dp = Dispatcher(bot)
 dp.middleware.setup(LoggingMiddleware())
+
 
 # Регистрация обработчиков
 dp.register_message_handler(start.start, commands=["start"])
@@ -40,12 +39,20 @@ dp.register_callback_query_handler(support.back_handler, lambda c: c.data == "ba
 from handlers.support import register_admin_handlers
 register_admin_handlers(dp)
 
+from handlers.callback_admin import register_admin
+register_admin(dp)
+
+
+# Уведомление об остановки бота
+async def on_shutdown(app):
+    await on_shutdown_notify(dp)
 
 # Инициализация базы данных при запуске
 async def on_startup(dp):
+    await on_startup_notify(dp)
     await create_tables()
 
 # Запуск бота
 if __name__ == "__main__":
     dp.middleware.setup(ThrottlingMiddleware())
-    executor.start_polling(dp, skip_updates=True, on_startup=on_startup)
+    executor.start_polling(dp, skip_updates=True, on_startup=on_startup, on_shutdown=on_shutdown)
