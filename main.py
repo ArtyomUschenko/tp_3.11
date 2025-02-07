@@ -11,6 +11,8 @@ from middlewares.thottling import ThrottlingMiddleware
 from utils.notify_admins import on_startup_notify, on_shutdown_notify
 from states import user_state, admin_state
 from utils.set_bot_commands import set_default_commands
+from aiogram import types
+
 
 # Настройка логгирования
 logging.basicConfig(
@@ -31,7 +33,7 @@ dp.register_message_handler(support.start_support, commands=["support"], state="
 dp.register_message_handler(support.get_name, state=user_state.SupportStates.GET_NAME)
 dp.register_message_handler(support.get_email, state=user_state.SupportStates.GET_EMAIL)
 dp.register_message_handler(support.get_message, state=user_state.SupportStates.GET_MESSAGE)
-dp.register_message_handler(handle_forwarded_message, is_forwarded=True)  # Новый обработчик
+dp.register_message_handler(handle_forwarded_message, is_forwarded=True, content_types=types.ContentType.ANY, state="*")  # Новый обработчик
 dp.register_callback_query_handler(support.cancel_handler, lambda c: c.data == "cancel", state="*")
 dp.register_callback_query_handler(support.back_handler, lambda c: c.data == "back", state="*")
 dp.register_callback_query_handler(support.handle_admin_callback,lambda c: c.data.startswith(("reply_", "view_")))
@@ -40,6 +42,7 @@ dp.register_callback_query_handler(support.skip_email,lambda c: c.data == "skip_
 dp.register_message_handler(callback_admin.get_forwarded_email,state=user_state.SupportStates.GET_EMAIL_FORWARDED)
 dp.register_callback_query_handler(support.start_support_handler, lambda c: c.data == "start_support")
 dp.register_callback_query_handler(support.handle_consent, lambda c: c.data in ["consent_yes", "cancel"], state=user_state.SupportStates.GET_CONSENT)
+
 
 # Уведомление об остановки бота
 async def on_shutdown(app):

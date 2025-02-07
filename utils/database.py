@@ -21,10 +21,11 @@ async def create_tables():
             user_username TEXT NULL,
             name TEXT NOT NULL,
             email TEXT NULL,
-            message TEXT NOT NULL,
+            message TEXT NULL,
             admin_id BIGINT NULL,
             admin_name TEXT NULL,
-            file_id TEXT NULL,
+            document_id TEXT,
+            photo_id TEXT,
             created_at TIMESTAMP DEFAULT NOW()
         );
     """)
