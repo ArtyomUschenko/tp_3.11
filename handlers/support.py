@@ -14,10 +14,35 @@ logging.basicConfig(level=logging.INFO)
 
 # Начало заполнения заявки
 async def start_support(message: types.Message, state: FSMContext):
-    cancel_keyboard = InlineKeyboardMarkup(row_width=1)
-    cancel_keyboard.add(InlineKeyboardButton("❌ Отмена", callback_data="cancel"))
-    await message.answer("Пожалуйста, введите ваше имя:", reply_markup=cancel_keyboard)
-    await state.set_state(user_state.SupportStates.GET_NAME.state)
+    consent_keyboard = InlineKeyboardMarkup(row_width=2)
+    consent_keyboard.add(
+        InlineKeyboardButton("✅ Согласен", callback_data="consent_yes"),
+        InlineKeyboardButton("❌ Отмена", callback_data="cancel")
+    )
+
+    # Текст согласия (используется HTML-форматирование)
+    text = (
+        "Вы даете согласие на обработку персональных данных?\n\n"
+        "[Политика в отношении обработки и защиты персональных данных](https://platform-eadsc.voskhod.ru/docs_back/personal_data_processing_policy.pdf)"
+    )
+    # Отправляем сообщение с HTML-форматированием
+    await message.answer(text, reply_markup=consent_keyboard, parse_mode=types.ParseMode.MARKDOWN)
+    await state.set_state(user_state.SupportStates.GET_CONSENT.state)  # Устанавливаем новое состояние
+
+
+async def handle_consent(callback: types.CallbackQuery, state: FSMContext):
+    if callback.data == "consent_yes":
+        cancel_keyboard = InlineKeyboardMarkup(row_width=1)
+        cancel_keyboard.add(InlineKeyboardButton("❌ Отмена", callback_data="cancel"))
+
+        await callback.message.edit_text("Пожалуйста, введите ваше имя:", reply_markup=cancel_keyboard)
+        await state.set_state(user_state.SupportStates.GET_NAME.state)
+
+    elif callback.data == "cancel":
+        await state.finish()
+        await callback.message.edit_text("Операция отменена.")
+
+    await callback.answer()
 
 async def get_name(message: types.Message, state: FSMContext):
     await state.update_data(name=message.text)
@@ -119,6 +144,11 @@ async def back_handler(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
+
+
+
+
+
 # Обработчик кнопки "Оставить заявку"
 async def start_support_handler(callback: types.CallbackQuery, state: FSMContext):
     try:
@@ -127,14 +157,24 @@ async def start_support_handler(callback: types.CallbackQuery, state: FSMContext
         logging.exception(f"Ошибка на ответ callback answer: {e}")
 
     # Создаем клавиатуру с кнопкой "Отмена"
-    cancel_keyboard = InlineKeyboardMarkup(row_width=1)
-    cancel_keyboard.add(InlineKeyboardButton("❌ Отмена", callback_data="cancel"))
+    consent_keyboard = InlineKeyboardMarkup(row_width=2)
+    consent_keyboard.add(
+        InlineKeyboardButton("✅ Согласен", callback_data="consent_yes"),
+        InlineKeyboardButton("❌ Отмена", callback_data="cancel")
+    )
+
+    # Текст согласия (используется HTML-форматирование)
+    text = (
+        "Вы даете согласие на обработку персональных данных?\n\n"
+        "[Политика в отношении обработки и защиты персональных данных](https://platform-eadsc.voskhod.ru/docs_back/personal_data_processing_policy.pdf)"
+    )
+
 
     # Уведомляем пользователя о начале заполнения заявки
-    await callback.message.answer("Пожалуйста, введите ваше имя:", reply_markup=cancel_keyboard)
+    await callback.message.answer(text, reply_markup=consent_keyboard, parse_mode=types.ParseMode.MARKDOWN)
 
     # Устанавливаем состояние GET_NAME для начала сбора данных
-    await state.set_state(user_state.SupportStates.GET_NAME.state)
+    await state.set_state(user_state.SupportStates.GET_CONSENT.state)
 
 
 # Обработчик кнопки "Отмена"
