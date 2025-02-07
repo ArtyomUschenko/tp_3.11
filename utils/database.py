@@ -17,9 +17,9 @@ async def create_tables():
     await conn.execute("""
         CREATE TABLE IF NOT EXISTS support_requests (
             id SERIAL PRIMARY KEY,
-            user_id BIGINT NOT NULL,
+            user_id BIGINT NULL,
             user_username TEXT NULL,
-            name TEXT NOT NULL,
+            name TEXT NULL,
             email TEXT NULL,
             message TEXT NULL,
             admin_id BIGINT NULL,

@@ -8,10 +8,34 @@ from utils.database import create_connection
 from utils.valid_email import is_valid_email
 from states import user_state
 import logging
+import os
+from aiogram import Bot
+from aiogram.utils.exceptions import TelegramAPIError
 
 # Настройка логгера
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+
+
+
+# Путь для временного хранения файлов
+from date.config import TELEGRAM_TOKEN
+TEMP_DIR = "temp_files"
+os.makedirs(TEMP_DIR, exist_ok=True)
+bot =Bot(TELEGRAM_TOKEN)
+# Функция для скачивания файла
+async def download_file(file_id: str, file_type: str) -> str:
+    file_path = f"{TEMP_DIR}/{file_id}_{file_type}"
+    file = await bot.get_file(file_id)
+    await file.download(destination_file=file_path)
+    logger.info(f"File downloaded: {file_path}")
+    return file_path
+
+
+
+
 
 
 # Обработчик пересланных сообщений
@@ -47,11 +71,13 @@ async def handle_forwarded_message(message: types.Message, state: FSMContext):
 
     # Проверяем, содержит ли сообщение документ
     if message.document:
-        user_data["document_id"] = message.document.file_id
-        logger.info(f"Document detected: {message.document.file_id}")
+        file_path = await download_file(message.document.file_id, "document")
+        user_data["document_path"] = file_path
+        logger.info(f"Document detected: {file_path}")
     elif message.photo:
-        user_data["photo_id"] = message.photo[-1].file_id  # Выбираем последний элемент (лучшее качество)
-        logger.info(f"Photo detected: {message.photo[-1].file_id}")
+        file_path = await download_file(message.photo[-1].file_id, "photo")
+        user_data["photo_path"] = file_path
+        logger.info(f"Photo detected: {file_path}")
     elif message.text:
         logger.info(f"Text message detected: {message.text}")
     else:
@@ -94,22 +120,27 @@ async def get_forwarded_email(message: types.Message, state: FSMContext):
     logger.info(f"Saving support request: {data}")
 
     # Сохраняем заявку в БД
-    conn = await create_connection()
-    await conn.execute(
-        """INSERT INTO support_requests 
-        (user_id, user_username, name, email, message, admin_id, admin_name, document_id, photo_id) 
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)""",
-        data['user_id'],
-        data['user_username'],
-        data['user_name'],
-        data.get('email'),  # Email может быть None
-        data['forwarded_text'],
-        data['admin_id'],
-        data['admin_name'],
-        data.get('document_id'),  # ID документа
-        data.get('photo_id')  # ID фото
-    )
-    await conn.close()
+    try:
+        conn = await create_connection()
+        await conn.execute(
+            """INSERT INTO support_requests 
+            (user_id, user_username, name, email, message, admin_id, admin_name, document_id, photo_id) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)""",
+            data['user_id'],
+            data['user_username'],
+            data['user_name'],
+            data.get('email'),  # Email может быть None
+            data['forwarded_text'],
+            data['admin_id'],
+            data['admin_name'],
+            data.get('document_path'),  # Путь к документу
+            data.get('photo_path')  # Путь к фото
+        )
+        await conn.close()
+    except Exception as e:
+        logger.error(f"Database error: {e}")
+        await message.answer("Произошла ошибка при сохранении заявки.")
+        return
 
     # Уведомление администратору
     admin_text = (
@@ -120,20 +151,22 @@ async def get_forwarded_email(message: types.Message, state: FSMContext):
         f"📝 Сообщение:\n{data['forwarded_text']}\n"
     )
     # Если есть документ, добавляем информацию о нем
-    if data.get('document_id'):
-        admin_text += f"📄 Прикреплен документ: {data['document_id']}\n"
-
-    # Если есть фото, добавляем информацию о нем
-    if data.get('photo_id'):
-        admin_text += f"🖼 Прикреплено фото: {data['photo_id']}\n"
-
+    # Отправляем уведомление администратору
     try:
         await message.bot.send_message(chat_id=ADMIN_ID, text=admin_text)
-    except Exception as e:
-        logging.error(f"Ошибка отправки уведомления админу: {e}")
 
-    await message.answer("Заявка успешно создана на основе пересланного сообщения.")
+        # Если есть документ, отправляем его администратору
+        if data.get('document_path'):
+            with open(data['document_path'], 'rb') as doc:
+                await message.bot.send_document(chat_id=ADMIN_ID, document=doc)
 
+        # Если есть фото, отправляем его администраторуa
+        if data.get('photo_path'):
+            with open(data['photo_path'], 'rb') as photo:
+                await message.bot.send_photo(chat_id=ADMIN_ID, photo=photo)
+    except TelegramAPIError as e:
+        logger.error(f"Ошибка отправки уведомления админу: {e}")
+        await message.answer("Заявка создана, но не удалось уведомить администратора.")
 
     # Формируем текст письма
     email_text = (
