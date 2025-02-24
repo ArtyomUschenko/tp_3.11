@@ -4,7 +4,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from utils.email_sender import send_email
 from utils.valid_email import is_valid_email
 from utils.database import create_connection
-from date.config  import ADMIN_ID, ADMIN_IDS
+from date.config  import ADMIN_ID
 from states import user_state, admin_state
 from keyboards import inline
 import logging
@@ -61,14 +61,11 @@ async def get_email(message: types.Message, state: FSMContext):
     await state.set_state(user_state.SupportStates.GET_MESSAGE.state)
 
 
-    username = message.from_user.username
+    # username = message.from_user.username
 
 async def get_message(message: types.Message, state: FSMContext):
-    # Извлекаем username пользователя
     username = message.from_user.username
-
     user_data = await state.get_data()
-    username = username
     name = user_data.get("name")
     email = user_data.get("email")
     problem = message.text
@@ -93,8 +90,8 @@ async def get_message(message: types.Message, state: FSMContext):
     )
 
     # Создаем инлайн-кнопки
-    keyboard = InlineKeyboardMarkup(row_width=2)
-    keyboard.add(
+    keyboard1 = InlineKeyboardMarkup(row_width=2)
+    keyboard1.add(
         InlineKeyboardButton(
             "✉️ Ответить",
             callback_data=f"reply_{user_id}"
@@ -105,7 +102,7 @@ async def get_message(message: types.Message, state: FSMContext):
         await message.bot.send_message(
             chat_id=ADMIN_ID,
             text=admin_text,
-            reply_markup=keyboard
+            reply_markup=keyboard1
         )
     except Exception as e:
         logging.error(f"Ошибка отправки уведомления админу: {e}")
@@ -186,70 +183,6 @@ async def cancel_handler(callback: types.CallbackQuery, state: FSMContext):
         reply_markup=None  # Убираем клавиатуру
     )
     await callback.answer()
-
-# Обработчик кнопки "Пропустить"
-async def skip_email(callback: types.CallbackQuery, state: FSMContext):
-    await state.update_data(email=None)
-    await callback.message.delete()  # Удаляем сообщение с клавиатурой
-    await process_forwarded_request(callback.message, state)  # Продолжаем обработку
-
-async def process_forwarded_request(message: types.Message, state: FSMContext):
-    data = await state.get_data()
-
-    # Сохраняем заявку без email
-    conn = await create_connection()
-    await conn.execute(
-        """INSERT INTO support_requests 
-        (user_id, user_username, name, message, admin_id, admin_name) 
-        VALUES ($1, $2, $3, $4, $5, $6)""",
-        data['user_id'],
-        data['user_username'],
-        data['user_name'],
-        data['forwarded_text'],
-        data['admin_id'],
-        data['admin_name']
-    )
-    await conn.close()
-
-    # Уведомление администратору
-    admin_text = (
-        "🚨 Новая заявка в поддержку!\n"
-        f"👤 Пользователь: {data['user_id']}\n"
-        f"📛 Имя: {data['user_name']}\n"
-        f"📝 Сообщение:\n{data['forwarded_text']}"
-    )
-
-    try:
-        await message.bot.send_message(
-            chat_id=ADMIN_ID,
-            text=admin_text
-        )
-    except Exception as e:
-        logging.error(f"Ошибка отправки уведомления админу: {e}")
-
-    await message.answer("Заявка успешно создана на основе пересланного сообщения.")
-
-    # Формируем текст письма
-    email_text = (
-        f"Сотрудник ТП завел заявку через чат.<br><br>"
-        f"Имя: <b>{data['user_name']}</b><br>"
-        f"Email: <b>{data.get('email', 'не указан')}</b><br>"
-        f"ID пользователя: <b>{data['user_id']}</b><br>"
-        f"Ссылка в tg: <b>https://t.me/{data['user_username']}</b><br>"
-        f"Текст обращения: <b>{data['forwarded_text']}</b><br><br>"
-
-        f"<i>Сообщение переслал сотрудник ТП:</i><br>"
-        f"ID: {data['admin_id']}<br>"
-        f"Имя: {data['admin_name']}"
-    )
-
-    # Отправляем письмо
-    send_email("Вопрос от пользователя через чат ГИС “Платформа “ЦХЭД”", body=email_text,
-               is_html=True)
-
-    await message.answer("Ваша заявка отправлена. Спасибо!")
-    await state.finish()
-
 
 
 # Обработчики кнопок

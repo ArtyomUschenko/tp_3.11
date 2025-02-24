@@ -26,6 +26,8 @@ async def create_tables():
             admin_name TEXT NULL,
             document_id TEXT,
             photo_id TEXT,
+            document_path TEXT,
+            photo_path TEXT,
             created_at TIMESTAMP DEFAULT NOW()
         );
     """)

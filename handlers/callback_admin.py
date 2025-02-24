@@ -1,53 +1,109 @@
 from aiogram import types, Dispatcher
-from date.config  import ADMIN_ID, ADMIN_IDS
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from utils.email_sender import send_email
 from utils.database import create_connection
 from utils.valid_email import is_valid_email
-from states import user_state
+from date.config import ADMIN_ID, ADMIN_IDS, TELEGRAM_TOKEN
 import logging
 import os
-from aiogram import Bot
 from aiogram.utils.exceptions import TelegramAPIError
 
 # Настройка логгера
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
-
-
-
 # Путь для временного хранения файлов
-from date.config import TELEGRAM_TOKEN
 TEMP_DIR = "temp_files"
 os.makedirs(TEMP_DIR, exist_ok=True)
-bot =Bot(TELEGRAM_TOKEN)
-# Функция для скачивания файла
-async def download_file(file_id: str, file_type: str) -> str:
-    file_path = f"{TEMP_DIR}/{file_id}_{file_type}"
-    file = await bot.get_file(file_id)
-    await file.download(destination_file=file_path)
-    logger.info(f"File downloaded: {file_path}")
-    return file_path
 
+# Состояния для FSM
+class SupportStates(StatesGroup):
+    GET_EMAIL_FORWARDED = State()
 
+# Генерация клавиатуры
+def get_keyboard(*buttons):
+    keyboard = InlineKeyboardMarkup(row_width=len(buttons))
+    keyboard.add(*(InlineKeyboardButton(text, callback_data=data) for text, data in buttons))
+    return keyboard
 
+# Валидация email
+def validate_email(email: str) -> bool:
+    return is_valid_email(email)
 
+# Сохранение заявки в базу данных
+async def save_request(data: dict):
+    conn = await create_connection()
+    try:
+        await conn.execute(
+            """INSERT INTO support_requests 
+            (user_id, user_username, name, email, message, admin_id, admin_name, document_path, photo_path) 
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)""",
+            data.get('user_id'),
+            data.get('user_username'),
+            data.get('user_name'),
+            data.get('email'),
+            data.get('forwarded_text'),
+            data.get('admin_id'),
+            data.get('admin_name'),
+            data.get('document_path'),
+            data.get('photo_path')
+        )
+    finally:
+        await conn.close()
 
+# Отправка уведомления администратору
+async def notify_admin(message: types.Message, data: dict):
+    admin_text = (
+        "🚨 Новая заявка в поддержку!\n\n"
+        f"👤 Пользователь: {data['user_id']}\n"
+        f"📛 Имя: {data['user_name']}\n"
+        f"📧 Email: {data.get('email', 'не указан')}\n"
+        f"📝 Сообщение:\n{data['forwarded_text']}"
+    )
+    for admin in ADMIN_IDS:
+        try:
+            await message.bot.send_message(chat_id=admin, text=admin_text)
+
+            # Если есть документ, отправляем его администратору
+            if data.get('document_path'):
+                with open(data['document_path'], 'rb') as doc:
+                    await message.bot.send_document(chat_id=admin, document=doc)
+
+            # Если есть фото, отправляем его администратору
+            if data.get('photo_path'):
+                with open(data['photo_path'], 'rb') as photo:
+                    await message.bot.send_photo(chat_id=admin, photo=photo)
+        except TelegramAPIError as e:
+            logger.error(f"Ошибка отправки уведомления админу: {e}")
+            await message.answer("Заявка создана, но не удалось уведомить администратора.")
+
+# Формирование текста письма
+def format_email_text(data: dict) -> str:
+    return (
+        f"Сотрудник ТП завел заявку через чат.<br><br>"
+        f"Имя: <b>{data['user_name']}</b><br>"
+        f"Email: <b>{data.get('email', 'не указан')}</b><br>"
+        f"ID пользователя: <b>{data['user_id']}</b><br>"
+        f"Ссылка в tg: <a href='https://t.me/{data['user_username']}'>https://t.me/{data['user_username']}</a><br>"
+        f"Текст обращения: <b>{data['forwarded_text']}</b><br><br>"
+        f"Сообщение переслал сотрудник ТП:<br>"
+        f"ID: <b>{data['admin_id']}</b><br>"
+        f"Имя: <b>{data['admin_name']}</b>"
+    )
 
 # Обработчик пересланных сообщений
 async def handle_forwarded_message(message: types.Message, state: FSMContext):
     logger.info(f"Handling forwarded message: {message}")
+
     # Проверяем права администратора
     if message.from_user.id not in ADMIN_IDS:
         logger.warning(f"User {message.from_user.id} is not an admin")
         await message.answer("Эта функция доступна только сотрудникам ТП.")
         return
 
-        # Проверяем, что сообщение переслано
+    # Проверяем, что сообщение переслано
     if not message.forward_from and not hasattr(message, "forward_sender_name"):
         logger.warning("Message is not properly forwarded")
         await message.answer("Это сообщение не является корректно пересланным.")
@@ -65,130 +121,59 @@ async def handle_forwarded_message(message: types.Message, state: FSMContext):
         "forwarded_text": message.text or message.caption,
         "admin_id": message.from_user.id,
         "admin_name": message.from_user.full_name,
-        "document_id": None,
-        "photo_id": None
+        "document_path": None,
+        "photo_path": None
     }
 
-    # Проверяем, содержит ли сообщение документ
+    # Проверяем, содержит ли сообщение документ или фото
     if message.document:
-        file_path = await download_file(message.document.file_id, "document")
-        user_data["document_path"] = file_path
-        logger.info(f"Document detected: {file_path}")
+        user_data["document_path"] = await download_file(message.document.file_id, "document")
+        logger.info(f"Document detected: {user_data['document_path']}")
     elif message.photo:
-        file_path = await download_file(message.photo[-1].file_id, "photo")
-        user_data["photo_path"] = file_path
-        logger.info(f"Photo detected: {file_path}")
-    elif message.text:
-        logger.info(f"Text message detected: {message.text}")
-    else:
-        logger.warning("Unsupported message type")
-        await message.answer("Неподдерживаемый тип сообщения.")
-        return
+        user_data["photo_path"] = await download_file(message.photo[-1].file_id, "photo")
+        logger.info(f"Photo detected: {user_data['photo_path']}")
 
     # Сохраняем данные в FSM
     await state.update_data(**user_data)
 
-    # Создаем клавиатуру с кнопкой "Пропустить"
-    keyboard = InlineKeyboardMarkup()
-    keyboard.row(
-        InlineKeyboardButton("❌ Отмена", callback_data="cancel"),
-        InlineKeyboardButton("⏭ Пропустить", callback_data="skip_email")
-    )
-
     # Запрашиваем email пользователя
     await message.answer(
         "Введите email пользователя (или нажмите 'Пропустить'):",
-        reply_markup=keyboard
+        reply_markup=get_keyboard(("❌ Отмена", "cancel"), ("⏭ Пропустить", "skip_email"))
     )
-    await state.set_state(user_state.SupportStates.GET_EMAIL_FORWARDED.state)
+    await SupportStates.GET_EMAIL_FORWARDED.set()
 
+# Обработчик кнопки "Пропустить"
+async def skip_email(callback: types.CallbackQuery, state: FSMContext):
+    await state.update_data(email=None)
+    await process_forwarded_request(callback.message, state)
 
-# Добавим новый обработчик для email
+# Обработчик email
 async def get_forwarded_email(message: types.Message, state: FSMContext):
     email = message.text.strip()
-    # Если email не пустой и невалидный
-    if email and not is_valid_email(email):
+    if email and not validate_email(email):
         await message.answer("❌ Некорректный email. Попробуйте еще раз:")
         return
 
-    # Сохраняем email (может быть None)
-    await state.update_data(email=email if email else None)
+    await state.update_data(email=email)
+    await process_forwarded_request(message, state)
 
-    # Продолжаем обработку
+# Обработка заявки
+async def process_forwarded_request(message: types.Message, state: FSMContext):
     data = await state.get_data()
 
-    logger.info(f"Saving support request: {data}")
-
     # Сохраняем заявку в БД
-    try:
-        conn = await create_connection()
-        await conn.execute(
-            """INSERT INTO support_requests 
-            (user_id, user_username, name, email, message, admin_id, admin_name, document_id, photo_id) 
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)""",
-            data['user_id'],
-            data['user_username'],
-            data['user_name'],
-            data.get('email'),  # Email может быть None
-            data['forwarded_text'],
-            data['admin_id'],
-            data['admin_name'],
-            data.get('document_path'),  # Путь к документу
-            data.get('photo_path')  # Путь к фото
-        )
-        await conn.close()
-    except Exception as e:
-        logger.error(f"Database error: {e}")
-        await message.answer("Произошла ошибка при сохранении заявки.")
-        return
+    await save_request(data)
 
     # Уведомление администратору
-    admin_text = (
-        "🚨 Новая заявка в поддержку!\n"
-        f"👤 Пользователь: {data['user_id']}\n"
-        f"📛 Имя: {data['user_name']}\n"
-        f"📧 Email: {data.get('email', 'не указан')}\n"
-        f"📝 Сообщение:\n{data['forwarded_text']}\n"
-    )
-    # Если есть документ, добавляем информацию о нем
-    # Отправляем уведомление администратору
-    try:
-        await message.bot.send_message(chat_id=ADMIN_ID, text=admin_text)
-
-        # Если есть документ, отправляем его администратору
-        if data.get('document_path'):
-            with open(data['document_path'], 'rb') as doc:
-                await message.bot.send_document(chat_id=ADMIN_ID, document=doc)
-
-        # Если есть фото, отправляем его администраторуa
-        if data.get('photo_path'):
-            with open(data['photo_path'], 'rb') as photo:
-                await message.bot.send_photo(chat_id=ADMIN_ID, photo=photo)
-    except TelegramAPIError as e:
-        logger.error(f"Ошибка отправки уведомления админу: {e}")
-        await message.answer("Заявка создана, но не удалось уведомить администратора.")
-
-    # Формируем текст письма
-    email_text = (
-        f"Сотрудник ТП завел заявку через чат.<br><br>"
-        f"Имя: <b>{data['user_name']}</b><br>"
-        f"Email: <b>{data.get('email', 'не указан')}</b><br>"
-        f"ID пользователя: <b>{data['user_id']}</b><br>"
-        f"Ссылка в tg: <b>https://t.me/{data['user_username']}</b><br>"
-        f"Текст обращения: <b>{data['forwarded_text']}</b><br><br>"
-
-        f"<i>Сообщение переслал сотрудник ТП:</i><br>"
-        f"ID: {data['admin_id']}<br>"
-        f"Имя: {data['admin_name']}"
-    )
+    await notify_admin(message, data)
 
     # Отправляем письмо
-    send_email("Вопрос от пользователя через чат ГИС “Платформа “ЦХЭД”", body=email_text,
-               is_html=True)
+    email_text = format_email_text(data)
+    send_email("Вопрос от пользователя через чат ГИС “Платформа “ЦХЭД”", body=email_text, is_html=True)
 
     await message.answer("Ваша заявка отправлена. Спасибо!")
     await state.finish()
-
 
 # Обработчик кнопки "Отмена"
 async def cancel_handler(callback: types.CallbackQuery, state: FSMContext):
@@ -196,6 +181,16 @@ async def cancel_handler(callback: types.CallbackQuery, state: FSMContext):
     await callback.message.edit_text("Операция отменена.")
     await callback.message.answer(
         "Используйте команду /support, чтобы отправить заявку в техническую поддержку.",
-        reply_markup=None  # Убираем клавиатуру
+        reply_markup=None
     )
     await callback.answer()
+
+# Функция для скачивания файла
+async def download_file(file_id: str, file_type: str) -> str:
+    file_path = f"{TEMP_DIR}/{file_id}_{file_type}"
+    file = await message.bot.get_file(file_id)
+    await file.download(destination_file=file_path)
+    logger.info(f"File downloaded: {file_path}")
+    return file_path
+
+
