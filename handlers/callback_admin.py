@@ -149,8 +149,8 @@ async def handle_forwarded_message(message: types.Message, state: FSMContext):
     # Проверяем, содержит ли сообщение фото
     elif message.photo:
         logger.info(f"Photo detected: file_id={message.photo[-1].file_id}")
-        # Для фото генерируем имя, так как file_name недоступно
-        original_name = f"photo_{message.photo[-1].file_id[:8]}"
+        # Для фото генерируем имя с расширением .jpg
+        original_name = f"photo_{message.photo[-1].file_id[:8]}"  # Без .jpg здесь, добавляется в download_file
         file_path = await download_file(
             message.photo[-1].file_id,
             "photo",
@@ -259,14 +259,17 @@ async def download_file(file_id: str, file_type: str, original_name: str = None)
         file_url = f"https://api.telegram.org/file/bot{TELEGRAM_TOKEN}/{file.file_path}"
 
         # Определяем базовое имя файла
-        if original_name:
-            # Убираем запрещенные символы в имени файла
+        if file_type == "document" and original_name:
+            # Убираем запрещенные символы в имени файла для документов
             clean_name = re.sub(r'[\\/*?:"<>|]', "", original_name)
             base_name = f"{timestamp}_{clean_name}"
+        elif file_type == "photo":
+            # Для фото добавляем расширение .jpg
+            clean_name = re.sub(r'[\\/*?:"<>|]', "", original_name or f"photo_{file_id[:8]}")
+            base_name = f"{timestamp}_{clean_name}.jpg"
         else:
-            # Извлекаем расширение из file_path
+            # Извлекаем расширение из file_path, если есть
             ext = os.path.splitext(file.file_path)[1] if '.' in file.file_path else ''
-            # Формируем имя по шаблону: тип_дата_часть_id
             base_name = f"{file_type}_{timestamp}_{file_id[:8]}{ext}"
 
         file_path = os.path.join(TEMP_DIR, base_name)
