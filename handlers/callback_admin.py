@@ -169,8 +169,21 @@ async def process_forwarded_request(message: types.Message, state: FSMContext):
     await notify_admin(message, data)
 
     # Отправляем письмо
+    # Формируем список вложений
+    attachments = []
+    if data.get('document_path'):
+        attachments.append(data['document_path'])
+    if data.get('photo_path'):
+        attachments.append(data['photo_path'])
+
+    # Отправляем письмо с вложениями
     email_text = format_email_text(data)
-    send_email("Вопрос от пользователя через чат ГИС “Платформа “ЦХЭД”", body=email_text, is_html=True)
+    send_email(
+        subject="Вопрос от пользователя через чат ГИС “Платформа “ЦХЭД”",
+        body=email_text,
+        is_html=True,
+        attachments=attachments
+    )
 
     await message.answer("Ваша заявка отправлена. Спасибо!")
     await state.finish()
