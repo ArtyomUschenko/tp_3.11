@@ -7,8 +7,10 @@ from utils.database import create_connection
 from utils.valid_email import is_valid_email
 from date.config import ADMIN_ID, ADMIN_IDS, TELEGRAM_TOKEN
 import logging
-import os
+import os, re
 from aiogram.utils.exceptions import TelegramAPIError
+import aiohttp
+import datetime
 
 # Настройка логгера
 logging.basicConfig(level=logging.INFO)
@@ -125,13 +127,41 @@ async def handle_forwarded_message(message: types.Message, state: FSMContext):
         "photo_path": None
     }
 
-    # Проверяем, содержит ли сообщение документ или фото
+    # Проверяем, содержит ли сообщение документ (например, PDF)
     if message.document:
-        user_data["document_path"] = await download_file(message.document.file_id, "document")
-        logger.info(f"Document detected: {user_data['document_path']}")
+        logger.info(
+            f"Document detected: file_id={message.document.file_id}, mime_type={message.document.mime_type}, file_name={message.document.file_name}"
+        )
+        # Скачиваем документ с оригинальным именем
+        original_name = message.document.file_name or "document"
+        file_path = await download_file(
+            message.document.file_id,
+            "document",
+            original_name
+        )
+        if file_path:
+            user_data["document_path"] = file_path
+            logger.info(f"Document saved: {user_data['document_path']}")
+        else:
+            logger.error("Failed to download document")
+            await message.answer("Не удалось скачать прикрепленный документ.")
+
+    # Проверяем, содержит ли сообщение фото
     elif message.photo:
-        user_data["photo_path"] = await download_file(message.photo[-1].file_id, "photo")
-        logger.info(f"Photo detected: {user_data['photo_path']}")
+        logger.info(f"Photo detected: file_id={message.photo[-1].file_id}")
+        # Для фото генерируем имя, так как file_name недоступно
+        original_name = f"photo_{message.photo[-1].file_id[:8]}"
+        file_path = await download_file(
+            message.photo[-1].file_id,
+            "photo",
+            original_name
+        )
+        if file_path:
+            user_data["photo_path"] = file_path
+            logger.info(f"Photo saved: {user_data['photo_path']}")
+        else:
+            logger.error("Failed to download photo")
+            await message.answer("Не удалось скачать прикрепленное фото.")
 
     # Сохраняем данные в FSM
     await state.update_data(**user_data)
@@ -160,33 +190,49 @@ async def get_forwarded_email(message: types.Message, state: FSMContext):
 
 # Обработка заявки
 async def process_forwarded_request(message: types.Message, state: FSMContext):
-    data = await state.get_data()
+    try:
+        data = await state.get_data()
 
-    # Сохраняем заявку в БД
-    await save_request(data)
+        # Сохраняем заявку в БД
+        await save_request(data)
 
-    # Уведомление администратору
-    await notify_admin(message, data)
+        # Уведомление администратору
+        await notify_admin(message, data)
 
-    # Отправляем письмо
-    # Формируем список вложений
-    attachments = []
-    if data.get('document_path'):
-        attachments.append(data['document_path'])
-    if data.get('photo_path'):
-        attachments.append(data['photo_path'])
+        # Отправляем письмо
+        # Формируем список вложений
+        attachments = []
+        if data.get('document_path') and os.path.exists(data['document_path']):
+            attachments.append(data['document_path'])
+            logger.info(f"Adding document to attachments: {data['document_path']}")
+        if data.get('photo_path') and os.path.exists(data['photo_path']):
+            attachments.append(data['photo_path'])
+            logger.info(f"Adding photo to attachments: {data['photo_path']}")
 
-    # Отправляем письмо с вложениями
-    email_text = format_email_text(data)
-    send_email(
-        subject="Вопрос от пользователя через чат ГИС “Платформа “ЦХЭД”",
-        body=email_text,
-        is_html=True,
-        attachments=attachments
-    )
+        # Отправляем письмо с вложениями
+        email_text = format_email_text(data)
+        send_email(
+            subject="Вопрос от пользователя через чат ГИС “Платформа “ЦХЭД”",
+            body=email_text,
+            is_html=True,
+            attachments=attachments
+        )
 
-    await message.answer("Ваша заявка отправлена. Спасибо!")
-    await state.finish()
+        await message.answer("Ваша заявка отправлена. Спасибо!")
+
+        # Очистка временных файлов
+        logger.info(f"Отправка вложений: {attachments}")
+        for file_path in attachments:
+            logger.info(f"Имя файла: {os.path.basename(file_path)}")
+            try:
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                    logger.info(f"Удален временный файл: {file_path}")
+            except Exception as e:
+                logger.error(f"Ошибка удаления файла: {str(e)}")
+    finally:
+        await state.finish()
+
 
 # Обработчик кнопки "Отмена"
 async def cancel_handler(callback: types.CallbackQuery, state: FSMContext):
@@ -200,20 +246,43 @@ async def cancel_handler(callback: types.CallbackQuery, state: FSMContext):
 
 # Функция для скачивания файла
 bot = Bot(token=TELEGRAM_TOKEN)
-async def download_file(file_id: str, file_type: str) -> str:
-    """Скачивает и сохраняет файл из Telegram"""
+
+
+async def download_file(file_id: str, file_type: str, original_name: str = None) -> str:
+    """Скачивает и сохраняет файл из Telegram с правильным именем"""
     try:
-        if file_type == "photo":
-            file_path = f"{TEMP_DIR}/{file_id}_{file_type}.jpg"
-        else:
-            file_path = f"{TEMP_DIR}/{file_id}_{file_type}"
+        # Генерируем временную метку
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
+        # Получаем информацию о файле
         file = await bot.get_file(file_id)
-        await file.download(destination_file=file_path)
-        logger.info(f"File downloaded: {file_path}")
-        return file_path
-    except Exception as e:
-        logger.error(f"File download error: {e}")
-        return None
+        file_url = f"https://api.telegram.org/file/bot{TELEGRAM_TOKEN}/{file.file_path}"
 
+        # Определяем базовое имя файла
+        if original_name:
+            # Убираем запрещенные символы в имени файла
+            clean_name = re.sub(r'[\\/*?:"<>|]', "", original_name)
+            base_name = f"{timestamp}_{clean_name}"
+        else:
+            # Извлекаем расширение из file_path
+            ext = os.path.splitext(file.file_path)[1] if '.' in file.file_path else ''
+            # Формируем имя по шаблону: тип_дата_часть_id
+            base_name = f"{file_type}_{timestamp}_{file_id[:8]}{ext}"
+
+        file_path = os.path.join(TEMP_DIR, base_name)
+
+        # Скачиваем файл
+        async with aiohttp.ClientSession() as session:
+            async with session.get(file_url) as response:
+                if response.status == 200:
+                    content = await response.read()
+                    with open(file_path, 'wb') as f:
+                        f.write(content)
+                    logger.info(f"Файл сохранен как: {file_path}")
+                    return file_path
+                logger.error(f"Ошибка загрузки: {response.status}")
+        return None
+    except Exception as e:
+        logger.error(f"Ошибка загрузки файла: {str(e)}")
+        return None
 
