@@ -1,4 +1,4 @@
-from aiogram import types, Dispatcher
+from aiogram import types, Dispatcher, Bot
 from aiogram.dispatcher import FSMContext
 from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -66,18 +66,18 @@ async def notify_admin(message: types.Message, data: dict):
         try:
             await message.bot.send_message(chat_id=admin, text=admin_text)
 
-            # Если есть документ, отправляем его администратору
+            # Отправляем документ, если он есть
             if data.get('document_path'):
                 with open(data['document_path'], 'rb') as doc:
-                    await message.bot.send_document(chat_id=admin, document=doc)
+                    await message.bot.send_document(chat_id=admin, document=doc, caption="Прикрепленный файл")
 
-            # Если есть фото, отправляем его администратору
+            # Отправляем фото, если оно есть
             if data.get('photo_path'):
                 with open(data['photo_path'], 'rb') as photo:
-                    await message.bot.send_photo(chat_id=admin, photo=photo)
+                    await message.bot.send_photo(chat_id=admin, photo=photo, caption="Прикрепленное фото")
         except TelegramAPIError as e:
-            logger.error(f"Ошибка отправки уведомления админу: {e}")
-            await message.answer("Заявка создана, но не удалось уведомить администратора.")
+            logger.error(f"Ошибка отправки уведомления админу {admin}: {e}")
+            await message.answer(f"Заявка создана, но не удалось уведомить администратора {admin}.")
 
 # Формирование текста письма
 def format_email_text(data: dict) -> str:
@@ -186,11 +186,17 @@ async def cancel_handler(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
 
 # Функция для скачивания файла
+bot = Bot(token=TELEGRAM_TOKEN)
 async def download_file(file_id: str, file_type: str) -> str:
-    file_path = f"{TEMP_DIR}/{file_id}_{file_type}"
-    file = await message.bot.get_file(file_id)
-    await file.download(destination_file=file_path)
-    logger.info(f"File downloaded: {file_path}")
-    return file_path
+    """Скачивает и сохраняет файл из Telegram"""
+    try:
+        file_path = f"{TEMP_DIR}/{file_id}_{file_type}"
+        file = await bot.get_file(file_id)
+        await file.download(destination_file=file_path)
+        logger.info(f"File downloaded: {file_path}")
+        return file_path
+    except Exception as e:
+        logger.error(f"File download error: {e}")
+        return None
 
 
