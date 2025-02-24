@@ -203,7 +203,11 @@ bot = Bot(token=TELEGRAM_TOKEN)
 async def download_file(file_id: str, file_type: str) -> str:
     """Скачивает и сохраняет файл из Telegram"""
     try:
-        file_path = f"{TEMP_DIR}/{file_id}_{file_type}"
+        if file_type == "photo":
+            file_path = f"{TEMP_DIR}/{file_id}_{file_type}.jpg"
+        else:
+            file_path = f"{TEMP_DIR}/{file_id}_{file_type}"
+
         file = await bot.get_file(file_id)
         await file.download(destination_file=file_path)
         logger.info(f"File downloaded: {file_path}")
