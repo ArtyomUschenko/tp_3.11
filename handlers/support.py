@@ -61,7 +61,6 @@ async def get_email(message: types.Message, state: FSMContext):
     await message.answer("Опишите вашу проблему:", reply_markup=keyboard)
     await state.set_state(user_state.SupportStates.GET_MESSAGE.state)
 
-
     # username = message.from_user.username
 
 async def get_message(message: types.Message, state: FSMContext):
@@ -71,6 +70,18 @@ async def get_message(message: types.Message, state: FSMContext):
     email = user_data.get("email")
     problem = message.text
     user_id = message.from_user.id
+
+    # Сохраняем временную информацию о проблеме
+    await state.update_data(problem=problem)
+
+    keyboard = InlineKeyboardMarkup(row_width=2)
+    keyboard.add(
+        InlineKeyboardButton("✅ Продолжить", callback_data="continue_without_file"),
+        InlineKeyboardButton("❌ Отмена", callback_data="cancel")
+    )
+
+    await message.answer("Хотите прикрепить файл к заявке?", reply_markup=keyboard)
+    await state.set_state(user_state.SupportStates.GET_FILE.state)
 
     # Сохраняем заявку в базу данных
     conn = await create_connection()

@@ -14,3 +14,6 @@ def get_keyboard_start_menu() -> InlineKeyboardMarkup:
     ib2 = InlineKeyboardButton('💻 Официальный сайт', url="https://platform-eadsc.voskhod.ru/")
     ikb.add(ib1, ib2)
     return ikb
+
+def get_yes_no_keyboard():
+    keyboard = InlineKeyboardMarkup(row_width=2)
