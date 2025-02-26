@@ -64,74 +64,79 @@ async def get_email(message: types.Message, state: FSMContext):
     # username = message.from_user.username
 
 async def get_message(message: types.Message, state: FSMContext):
-    username = message.from_user.username
-    user_data = await state.get_data()
-    name = user_data.get("name")
-    email = user_data.get("email")
-    problem = message.text
-    user_id = message.from_user.id
-
     # Сохраняем временную информацию о проблеме
-    await state.update_data(problem=problem)
+    await state.update_data(problem=message.text)
 
     keyboard = inline.get_yes_no_keyboard_support()
 
     await message.answer("Хотите прикрепить файл к заявке?", reply_markup=keyboard)
     await state.set_state(user_state.SupportStates.GET_FILE.state)
 
-    # Сохраняем заявку в базу данных
-    conn = await create_connection()
-    await conn.execute(
-        "INSERT INTO support_requests (user_id, name, user_username, email, message) VALUES ($1, $2, $3, $4, $5)",
-        message.from_user.id,  name, username, email, problem
-    )
-    await conn.close()
+async def handle_file_choice(callback: types.CallbackQuery, state: FSMContext):
+    if callback.data == "no_support":
+        username = callback.from_user.username
+        user_data = await state.get_data()
+        name = user_data.get("name")
+        email = user_data.get("email")
+        problem = user_data.get("problem")
+        user_id = callback.from_user.id
 
-    # Уведомление администратору
-    admin_text = (
-        "🚨 Новая заявка в поддержку!\n"
-        f"👤 Пользователь: {user_id}\n"
-        f"👤 Ссылка в tg: @{username if username else 'Не указан'}\n"
-        f"📛 Имя: {name}\n"
-        f"📧 Email: {email}\n"
-        f"📝 Сообщение:\n{problem}"
-    )
-
-    # Создаем инлайн-кнопки
-    keyboard1 = InlineKeyboardMarkup(row_width=2)
-    keyboard1.add(
-        InlineKeyboardButton(
-            "✉️ Ответить",
-            callback_data=f"reply_{user_id}"
+        # Сохраняем заявку в базу данных без файла
+        conn = await create_connection()
+        await conn.execute(
+            "INSERT INTO support_requests (user_id, name, user_username, email, message, document_path) VALUES ($1, $2, $3, $4, $5, $6)",
+            callback.from_user.id, name, username, email, problem, None
         )
-    )
+        await conn.close()
 
-    try:
-        await message.bot.send_message(
-            chat_id=ADMIN_ID,
-            text=admin_text,
-            reply_markup=keyboard1
+        # Уведомление администратору
+        admin_text = (
+            "🚨 Новая заявка в поддержку!\n"
+            f"👤 Пользователь: {user_id}\n"
+            f"👤 Ссылка в tg: @{username if username else 'Не указан'}\n"
+            f"📛 Имя: {name}\n"
+            f"📧 Email: {email}\n"
+            f"📝 Сообщение:\n{problem}"
         )
-    except Exception as e:
-        logging.error(f"Ошибка отправки уведомления админу: {e}")
+
+        # Создаем инлайн-кнопки
+        keyboard1 = InlineKeyboardMarkup(row_width=1)
+        keyboard1.add(
+            InlineKeyboardButton(
+                "✉️ Ответить",
+                callback_data=f"reply_{user_id}"
+            )
+        )
+
+        try:
+            await callback.message.bot.send_message(
+                chat_id=ADMIN_ID,
+                text=admin_text,
+                reply_markup=keyboard1
+            )
+        except Exception as e:
+            logging.error(f"Ошибка отправки уведомления админу: {e}")
 
 
-    # Формируем текст письма
-    email_text = (
-        f"Пользователь оставил запрос в техническую поддержку через чат.<br><br>"
-        f"Имя: <b>{name}</b><br>"
-        f"Email: <b>{email}</b><br>"
-        f"Ссылка в tg: <b>https://t.me/{username if username else 'Не_указан'}</b><br>"
-        f"Текст обращения: <b>{problem}</b>"
-    )
+        # Формируем текст письма
+        email_text = (
+            f"Пользователь оставил запрос в техническую поддержку через чат.<br><br>"
+            f"Имя: <b>{name}</b><br>"
+            f"Email: <b>{email}</b><br>"
+            f"Ссылка в tg: <b>https://t.me/{username if username else 'Не_указан'}</b><br>"
+            f"Текст обращения: <b>{problem}</b>"
+        )
 
-    # Отправляем письмо
-    send_email("Вопрос от пользователя через чат ГИС “Платформа “ЦХЭД”", body=email_text,
-    is_html=True)
+        # Отправляем письмо
+        send_email("Вопрос от пользователя через чат ГИС “Платформа “ЦХЭД”", body=email_text,
+        is_html=True)
 
-    await message.answer("Ваша заявка отправлена. Спасибо!")
-    await state.finish()
-
+        await callback.message.answer("Ваша заявка отправлена. Спасибо!")
+        await state.finish()
+    elif callback.data == "yes_support":
+        await state.finish()
+        await callback.message.edit_text("Пожалуйста, отправьте файл или фото.")
+    await callback.answer()
 
 # ///////////Кнопки\\\\\\\\\
 
