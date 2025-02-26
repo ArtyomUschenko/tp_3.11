@@ -15,5 +15,10 @@ def get_keyboard_start_menu() -> InlineKeyboardMarkup:
     ikb.add(ib1, ib2)
     return ikb
 
-def get_yes_no_keyboard():
-    keyboard = InlineKeyboardMarkup(row_width=2)
+def get_yes_no_keyboard_support():
+    ikb = InlineKeyboardMarkup(row_width=2)
+    ib1 = InlineKeyboardButton('✅ Да', callback_data='yes_support')
+    ib2 = InlineKeyboardButton('❌ Нет', callback_data='no_support')
+    ikb.add(ib1, ib2)
+    return ikb
+

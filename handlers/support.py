@@ -74,11 +74,7 @@ async def get_message(message: types.Message, state: FSMContext):
     # Сохраняем временную информацию о проблеме
     await state.update_data(problem=problem)
 
-    keyboard = InlineKeyboardMarkup(row_width=2)
-    keyboard.add(
-        InlineKeyboardButton("✅ Продолжить", callback_data="continue_without_file"),
-        InlineKeyboardButton("❌ Отмена", callback_data="cancel")
-    )
+    keyboard = inline.get_yes_no_keyboard_support()
 
     await message.answer("Хотите прикрепить файл к заявке?", reply_markup=keyboard)
     await state.set_state(user_state.SupportStates.GET_FILE.state)
