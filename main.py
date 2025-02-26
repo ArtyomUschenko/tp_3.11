@@ -42,6 +42,7 @@ dp.register_callback_query_handler(callback_admin.cancel_handler, lambda c: c.da
 dp.register_message_handler(callback_admin.get_forwarded_email,state=user_state.SupportStates.GET_EMAIL_FORWARDED)
 dp.register_callback_query_handler(support.start_support_handler, lambda c: c.data == "start_support")
 dp.register_callback_query_handler(support.handle_consent, lambda c: c.data in ["consent_yes", "cancel"], state=user_state.SupportStates.GET_CONSENT)
+dp.register_callback_query_handler(support.handle_file_choice, state=user_state.SupportStates.GET_FILE)
 
 # Уведомление об остановки бота
 async def on_shutdown(app):
