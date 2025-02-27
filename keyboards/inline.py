@@ -14,3 +14,11 @@ def get_keyboard_start_menu() -> InlineKeyboardMarkup:
     ib2 = InlineKeyboardButton('💻 Официальный сайт', url="https://platform-eadsc.voskhod.ru/")
     ikb.add(ib1, ib2)
     return ikb
+
+def get_yes_no_keyboard_support():
+    ikb = InlineKeyboardMarkup(row_width=2)
+    ib1 = InlineKeyboardButton('✅ Да', callback_data='yes_support')
+    ib2 = InlineKeyboardButton('❌ Нет', callback_data='no_support')
+    ikb.add(ib1, ib2)
+    return ikb
+

@@ -61,71 +61,89 @@ async def get_email(message: types.Message, state: FSMContext):
     await message.answer("Опишите вашу проблему:", reply_markup=keyboard)
     await state.set_state(user_state.SupportStates.GET_MESSAGE.state)
 
-
     # username = message.from_user.username
 
 async def get_message(message: types.Message, state: FSMContext):
-    username = message.from_user.username
-    user_data = await state.get_data()
-    name = user_data.get("name")
-    email = user_data.get("email")
-    problem = message.text
-    user_id = message.from_user.id
+    # Сохраняем временную информацию о проблеме
+    await state.update_data(problem=message.text)
 
-    # Сохраняем заявку в базу данных
-    conn = await create_connection()
-    await conn.execute(
-        "INSERT INTO support_requests (user_id, name, user_username, email, message) VALUES ($1, $2, $3, $4, $5)",
-        message.from_user.id,  name, username, email, problem
-    )
-    await conn.close()
+    keyboard = inline.get_yes_no_keyboard_support()
 
-    # Уведомление администратору
-    admin_text = (
-        "🚨 Новая заявка в поддержку!\n"
-        f"👤 Пользователь: {user_id}\n"
-        f"👤 Ссылка в tg: @{username if username else 'Не указан'}\n"
-        f"📛 Имя: {name}\n"
-        f"📧 Email: {email}\n"
-        f"📝 Сообщение:\n{problem}"
-    )
+    await message.answer("Хотите прикрепить файл к заявке?", reply_markup=keyboard)
+    await state.set_state(user_state.SupportStates.GET_FILE.state)
 
-    # Создаем инлайн-кнопки
-    keyboard1 = InlineKeyboardMarkup(row_width=2)
-    keyboard1.add(
-        InlineKeyboardButton(
-            "✉️ Ответить",
-            callback_data=f"reply_{user_id}"
-        )
-    )
+async def handle_file_choice(callback: types.CallbackQuery, state: FSMContext):
+    logging.info(f"Callback data received: {callback.data}")
 
-    try:
-        await message.bot.send_message(
-            chat_id=ADMIN_ID,
-            text=admin_text,
-            reply_markup=keyboard1
-        )
-    except Exception as e:
-        logging.error(f"Ошибка отправки уведомления админу: {e}")
+    if callback.data == "no_support":
+        try:
+            username = callback.from_user.username
+            user_data = await state.get_data()
+            name = user_data.get("name")
+            email = user_data.get("email")
+            problem = user_data.get("problem")
+            user_id = callback.from_user.id
+            logging.info(f"Processing no_support for user {user_id}")
 
+            # Сохранение в базу данных
+            conn = await create_connection()
+            try:
+                await conn.execute(
+                    "INSERT INTO support_requests (user_id, name, user_username, email, message, document_path) VALUES ($1, $2, $3, $4, $5, $6)",
+                    user_id, name, username, email, problem, None
+                )
+                await conn.close()
+                logging.info("Request saved to DB")
+            except Exception as e:
+                logging.error(f"Database error: {e}")
+                raise
 
-    # Формируем текст письма
-    email_text = (
-        f"Пользователь оставил запрос в техническую поддержку через чат.<br><br>"
-        f"Имя: <b>{name}</b><br>"
-        f"Email: <b>{email}</b><br>"
-        f"Ссылка в tg: <b>https://t.me/{username if username else 'Не_указан'}</b><br>"
-        f"Текст обращения: <b>{problem}</b>"
-    )
+            # Уведомление администратору
+            admin_text = (
+                "🚨 Новая заявка в поддержку!\n"
+                f"👤 Пользователь: {user_id}\n"
+                f"👤 Ссылка в tg: @{username if username else 'Не указан'}\n"
+                f"📛 Имя: {name}\n"
+                f"📧 Email: {email}\n"
+                f"📝 Сообщение:\n{problem}"
+            )
+            keyboard1 = InlineKeyboardMarkup(row_width=1)
+            keyboard1.add(InlineKeyboardButton("✉️ Ответить", callback_data=f"reply_{user_id}"))
 
-    # Отправляем письмо
-    send_email("Вопрос от пользователя через чат ГИС “Платформа “ЦХЭД”", body=email_text,
-    is_html=True)
+            try:
+                await callback.message.bot.send_message(chat_id=ADMIN_ID, text=admin_text, reply_markup=keyboard1)
+                logging.info("Admin notified")
+            except Exception as e:
+                logging.error(f"Ошибка отправки уведомления админу: {e}")
 
-    await message.answer("Ваша заявка отправлена. Спасибо!")
-    await state.finish()
+            # Отправка email
+            email_text = (
+                f"Пользователь оставил запрос в техническую поддержку через чат.<br><br>"
+                f"Имя: <b>{name}</b><br>"
+                f"Email: <b>{email}</b><br>"
+                f"ID пользователя: <b>{user_id}</b><br>"
+                f"Ссылка в tg: <b>https://t.me/{username if username else 'Не_указан'}</b><br>"
+                f"Текст обращения: <b>{problem}</b>"
+            )
+            try:
+                send_email("Вопрос от пользователя через чат ГИС “Платформа “ЦХЭД”", body=email_text, is_html=True)
+                logging.info("Email sent")
+            except Exception as e:
+                logging.error(f"Email sending error: {e}")
 
+            # Ответ пользователю
+            await callback.message.edit_text("Ваша заявка отправлена. Спасибо!")
+            await state.finish()
+            logging.info("Process completed for no_support")
+        except Exception as e:
+            logging.error(f"Error in no_support branch: {e}")
+            await callback.message.edit_text("Произошла ошибка при отправке заявки. Попробуйте снова.")
+    elif callback.data == "yes_support":
+        await callback.message.edit_text("Пожалуйста, отправьте файл или фото.")
+        await state.set_state(user_state.SupportStates.GET_FILE_UPLOAD.state)
+        logging.info("Switched to GET_FILE_UPLOAD state")
 
+    await callback.answer()
 # ///////////Кнопки\\\\\\\\\
 
 # Обработчик кнопки "Назад"
