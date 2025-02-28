@@ -7,4 +7,5 @@ class SupportStates(StatesGroup):
     GET_EMAIL = State()
     GET_MESSAGE = State()
     GET_FILE = State()
+    GET_FILE_UPLOAD = State()
     GET_EMAIL_FORWARDED = State()  # Новое состояние для пересланных сообщений

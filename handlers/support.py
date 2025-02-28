@@ -92,8 +92,7 @@ async def handle_consent(callback: types.CallbackQuery, state: FSMContext):
 
 async def get_name(message: types.Message, state: FSMContext):
     await state.update_data(name=message.text)
-    keyboard = inline.get_back_cancel_keyboard()
-    await message.answer("Введите ваш email:", reply_markup=keyboard)
+    await message.answer("Введите ваш email:", reply_markup=inline.get_back_cancel_keyboard())
     await state.set_state(user_state.SupportStates.GET_EMAIL.state)
 
 async def get_email(message: types.Message, state: FSMContext):
@@ -102,57 +101,51 @@ async def get_email(message: types.Message, state: FSMContext):
         return
 
     await state.update_data(email=message.text)
-    keyboard = inline.get_back_cancel_keyboard()
-    await message.answer("Опишите вашу проблему:", reply_markup=keyboard)
+    await message.answer("Опишите вашу проблему:", reply_markup=inline.get_back_cancel_keyboard())
     await state.set_state(user_state.SupportStates.GET_MESSAGE.state)
-
-    # username = message.from_user.username
 
 async def get_message(message: types.Message, state: FSMContext):
     # Сохраняем временную информацию о проблеме
     await state.update_data(problem=message.text)
-
-    keyboard = inline.get_yes_no_keyboard_support()
-
-    await message.answer("Хотите прикрепить файл к заявке?", reply_markup=keyboard)
+    await message.answer("Хотите прикрепить файл к заявке?", reply_markup=inline.get_yes_no_keyboard_support())
     await state.set_state(user_state.SupportStates.GET_FILE.state)
 
 async def handle_file_choice(callback: types.CallbackQuery, state: FSMContext):
-    logging.info(f"Callback data received: {callback.data}")
     if callback.data == "no_support":
-        user_data = await state.get_data()
-        user_id = callback.from_user.id
-        username = callback.from_user.username
-        problem = user_data.get("problem")
-        try:
-            # Сохранение в базу данных
-            await save_to_database(user_id, user_data, username, problem)
-
-            # Уведомление администратора
-            await send_admin_notification(
-                callback.message.bot,
-                user_data,
-                user_id,
-                username,
-                problem
-            )
-
-            # Отправка email
-            await send_confirmation_email(user_data, user_id, username, problem)
-
-            await callback.message.edit_text("Ваша заявка отправлена. Спасибо!")
-        except Exception as e:
-            logger.error(f"Error processing request: {e}")
-            await callback.message.edit_text("Ошибка при отправке заявки. Попробуйте снова.")
-        finally:
-            await state.finish()
-    elif callback.data == "yes_support":
+        await process_support_request(callback, state)
+    else:
         await callback.message.edit_text("Пожалуйста, отправьте файл или фото.")
         await state.set_state(user_state.SupportStates.GET_FILE_UPLOAD.state)
-        logging.info("Switched to GET_FILE_UPLOAD state")
-
     await callback.answer()
-# ///////////Кнопки\\\\\\\\\
+
+
+async def process_support_request(callback: types.CallbackQuery, state: FSMContext):
+    user_data = await state.get_data()
+    user_id = callback.from_user.id
+    username = callback.from_user.username
+    problem = user_data.get("problem")
+    try:
+        # Сохранение в базу данных
+        await save_to_database(user_id, user_data, username, problem)
+
+        # Уведомление администратора
+        await send_admin_notification(
+            callback.message.bot,
+            user_data,
+            user_id,
+            username,
+            problem
+        )
+
+        # Отправка email
+        await send_confirmation_email(user_data, user_id, username, problem)
+
+        await callback.message.edit_text("Ваша заявка отправлена. Спасибо!")
+    except Exception as e:
+        logger.error(f"Error processing request: {e}")
+        await callback.message.edit_text("Ошибка при отправке заявки. Попробуйте снова.")
+    finally:
+        await state.finish()
 
 # Обработчик кнопки "Назад"
 async def back_handler(callback: types.CallbackQuery, state: FSMContext):
