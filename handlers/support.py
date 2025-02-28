@@ -76,10 +76,10 @@ async def save_to_database(user_id, user_data, username, problem, document_path=
         await conn.close()
 
 # Начало заполнения заявки
-async def start_support(message: types.Message, state: FSMContext):
-    # Отправляем сообщение с HTML-форматированием
-    await message.answer(CONSENT_TEXT, reply_markup=create_consent_keyboard(), parse_mode=types.ParseMode.MARKDOWN)
-    await state.set_state(user_state.SupportStates.GET_CONSENT.state)  # Устанавливаем новое состояние
+async def start_support(callback: types.CallbackQuery, state: FSMContext):
+    await callback.answer()
+    await callback.message.answer(CONSENT_TEXT, reply_markup=create_consent_keyboard(), parse_mode=types.ParseMode.MARKDOWN)
+    await state.set_state(user_state.SupportStates.GET_CONSENT.state)
 
 
 async def handle_consent(callback: types.CallbackQuery, state: FSMContext):
@@ -149,45 +149,19 @@ async def process_support_request(callback: types.CallbackQuery, state: FSMConte
 
 # Обработчик кнопки "Назад"
 async def back_handler(callback: types.CallbackQuery, state: FSMContext):
+    state_mapping = {
+        user_state.SupportStates.GET_EMAIL.state:
+            ("Пожалуйста, введите ваше имя:", user_state.SupportStates.GET_NAME),
+        user_state.SupportStates.GET_MESSAGE.state:
+            ("Введите ваш email:", user_state.SupportStates.GET_EMAIL)
+    }
+
     current_state = await state.get_state()
-    if current_state == user_state.SupportStates.GET_EMAIL.state:
-        keyboard = inline.get_back_cancel_keyboard()
-        await state.set_state(user_state.SupportStates.GET_NAME.state)
-        await callback.message.edit_text("Пожалуйста, введите ваше имя:", reply_markup=keyboard)
-    elif current_state == user_state.SupportStates.GET_MESSAGE.state:
-        keyboard = inline.get_back_cancel_keyboard()
-        await state.set_state(user_state.SupportStates.GET_EMAIL.state)
-        await callback.message.edit_text("Введите ваш email:", reply_markup=keyboard)
+    if current_state in state_mapping:
+        text, new_state = state_mapping[current_state]
+        await callback.message.edit_text(text, reply_markup=inline.get_back_cancel_keyboard())
+        await new_state.set()
     await callback.answer()
-
-
-# Обработчик кнопки "Оставить заявку"
-async def start_support_handler(callback: types.CallbackQuery, state: FSMContext):
-    try:
-        await callback.answer()  # Ответ на callback без дополнительных данных
-    except Exception as e:
-        logging.exception(f"Ошибка на ответ callback answer: {e}")
-
-    # Создаем клавиатуру с кнопкой "Отмена"
-    consent_keyboard = InlineKeyboardMarkup(row_width=2)
-    consent_keyboard.add(
-        InlineKeyboardButton("✅ Согласен", callback_data="consent_yes"),
-        InlineKeyboardButton("❌ Отмена", callback_data="cancel")
-    )
-
-    # Текст согласия (используется HTML-форматирование)
-    text = (
-        "Вы даете согласие на обработку персональных данных?\n\n"
-        "[Политика в отношении обработки и защиты персональных данных](https://platform-eadsc.voskhod.ru/docs_back/personal_data_processing_policy.pdf)"
-    )
-
-
-    # Уведомляем пользователя о начале заполнения заявки
-    await callback.message.answer(text, reply_markup=consent_keyboard, parse_mode=types.ParseMode.MARKDOWN)
-
-    # Устанавливаем состояние GET_NAME для начала сбора данных
-    await state.set_state(user_state.SupportStates.GET_CONSENT.state)
-
 
 # Обработчик кнопки "Отмена"
 async def cancel_handler(callback: types.CallbackQuery, state: FSMContext):
@@ -199,22 +173,7 @@ async def cancel_handler(callback: types.CallbackQuery, state: FSMContext):
     )
     await callback.answer()
 
-
-# Обработчики кнопок
-async def handle_admin_callback(callback: types.CallbackQuery, state: FSMContext):
-    action, data = callback.data.split("_")
-
-    if action == "reply":
-        await state.update_data(target_user_id=data)
-        await callback.message.answer("Введите ваш ответ:")
-        await admin_state.AdminStates.WAITING_FOR_REPLY.set()
-
-    elif action == "view":
-        # Здесь можно добавить логику просмотра заявки из БД
-        await callback.answer("Заявка будет показана здесь", show_alert=True)
-
-    await callback.answer()
-
+# Отправка сообщения пользователю через ТГ
 async def handle_admin_reply(message: types.Message, state: FSMContext):
     user_data = await state.get_data()
     target_user_id = user_data.get("target_user_id")
@@ -228,8 +187,11 @@ async def handle_admin_reply(message: types.Message, state: FSMContext):
     except Exception as e:
         await message.answer("❌ Ошибка отправки ответа")
         logging.error(f"Ошибка отправки ответа: {e}")
+    finally:
+        await state.finish()
 
-    await state.finish()
+
+
 
 
 
