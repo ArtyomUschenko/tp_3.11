@@ -9,9 +9,16 @@ from states import user_state, admin_state
 from keyboards import inline
 import logging
 
-
 # Настройка логгера
 logging.basicConfig(level=logging.INFO)
+
+# Текст согласия (используется HTML-форматирование)
+CONSENT_TEXT = (
+    "Вы даете согласие на обработку персональных данных?\n\n"
+    "[Политика в отношении обработки и защиты персональных данных]"
+    "(https://platform-eadsc.voskhod.ru/docs_back/personal_data_processing_policy.pdf)"
+)
+
 
 # Начало заполнения заявки
 async def start_support(message: types.Message, state: FSMContext):
@@ -21,13 +28,8 @@ async def start_support(message: types.Message, state: FSMContext):
         InlineKeyboardButton("❌ Отмена", callback_data="cancel")
     )
 
-    # Текст согласия (используется HTML-форматирование)
-    text = (
-        "Вы даете согласие на обработку персональных данных?\n\n"
-        "[Политика в отношении обработки и защиты персональных данных](https://platform-eadsc.voskhod.ru/docs_back/personal_data_processing_policy.pdf)"
-    )
     # Отправляем сообщение с HTML-форматированием
-    await message.answer(text, reply_markup=consent_keyboard, parse_mode=types.ParseMode.MARKDOWN)
+    await message.answer(CONSENT_TEXT, reply_markup=consent_keyboard, parse_mode=types.ParseMode.MARKDOWN)
     await state.set_state(user_state.SupportStates.GET_CONSENT.state)  # Устанавливаем новое состояние
 
 
@@ -98,6 +100,7 @@ async def handle_file_choice(callback: types.CallbackQuery, state: FSMContext):
                 logging.error(f"Database error: {e}")
                 raise
 
+
             # Уведомление администратору
             admin_text = (
                 "🚨 Новая заявка в поддержку!\n"
@@ -158,11 +161,6 @@ async def back_handler(callback: types.CallbackQuery, state: FSMContext):
         await state.set_state(user_state.SupportStates.GET_EMAIL.state)
         await callback.message.edit_text("Введите ваш email:", reply_markup=keyboard)
     await callback.answer()
-
-
-
-
-
 
 
 # Обработчик кнопки "Оставить заявку"
