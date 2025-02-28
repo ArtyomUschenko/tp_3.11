@@ -12,6 +12,9 @@ import logging
 # Настройка логгера
 logging.basicConfig(level=logging.INFO)
 
+# Настройка логгера
+logger = logging.getLogger(__name__)
+
 # Текст согласия (используется HTML-форматирование)
 CONSENT_TEXT = (
     "Вы даете согласие на обработку персональных данных?\n\n"
@@ -36,7 +39,11 @@ async def send_admin_notification(bot, user_data, user_id, username, problem):
     )
     keyboard = InlineKeyboardMarkup(row_width=1)
     keyboard.add(InlineKeyboardButton("✉️ Ответить", callback_data=f"reply_{user_id}"))
-    await bot.send_message(ADMIN_ID, admin_text, reply_markup=keyboard)
+    try:
+        await bot.send_message(ADMIN_ID, admin_text, reply_markup=keyboard)
+        logging.info("Уведомление администратору отправлено")
+    except Exception as e:
+        logging.error(f"Уведомление не отправлено администратору: {e}")
 
 # Отправка email
 async def send_confirmation_email(user_data, user_id, username, problem):
@@ -50,10 +57,23 @@ async def send_confirmation_email(user_data, user_id, username, problem):
     )
     try:
         send_email("Вопрос от пользователя через чат ГИС “Платформа “ЦХЭД”", body=email_text, is_html=True)
-        logging.info("Email sent")
+        logging.info("Заявка отправлена на почту")
     except Exception as e:
-        logging.error(f"Email sending error: {e}")
+        logging.error(f"Ошибка отправки заявки на почту: {e}")
 
+# Сохранение информации в БД
+async def save_to_database(user_id, user_data, username, problem, document_path=None):
+    conn = await create_connection()
+    try:
+        await conn.execute(
+            """INSERT INTO support_requests 
+            (user_id, name, user_username, email, message, document_path) 
+            VALUES ($1, $2, $3, $4, $5, $6)""",
+            user_id, user_data['name'], username, user_data['email'],
+            problem, document_path
+        )
+    finally:
+        await conn.close()
 
 
 
@@ -108,32 +128,16 @@ async def get_message(message: types.Message, state: FSMContext):
 
 async def handle_file_choice(callback: types.CallbackQuery, state: FSMContext):
     logging.info(f"Callback data received: {callback.data}")
-
     if callback.data == "no_support":
+        user_data = await state.get_data()
+        user_id = callback.from_user.id
+        username = callback.from_user.username
+        problem = user_data.get("problem")
         try:
-            username = callback.from_user.username
-            user_data = await state.get_data()
-            name = user_data.get("name")
-            email = user_data.get("email")
-            problem = user_data.get("problem")
-            user_id = callback.from_user.id
-            logging.info(f"Processing no_support for user {user_id}")
-
             # Сохранение в базу данных
-            conn = await create_connection()
-            try:
-                await conn.execute(
-                    "INSERT INTO support_requests (user_id, name, user_username, email, message, document_path) VALUES ($1, $2, $3, $4, $5, $6)",
-                    user_id, name, username, email, problem, None
-                )
-                await conn.close()
-                logging.info("Request saved to DB")
-            except Exception as e:
-                logging.error(f"Database error: {e}")
-                raise
+            await save_to_database(user_id, user_data, username, problem)
 
-
-            # Уведомление администратору
+            # Уведомление администратора
             await send_admin_notification(
                 callback.message.bot,
                 user_data,
@@ -145,14 +149,12 @@ async def handle_file_choice(callback: types.CallbackQuery, state: FSMContext):
             # Отправка email
             await send_confirmation_email(user_data, user_id, username, problem)
 
-
-            # Ответ пользователю
             await callback.message.edit_text("Ваша заявка отправлена. Спасибо!")
-            await state.finish()
-            logging.info("Process completed for no_support")
         except Exception as e:
-            logging.error(f"Error in no_support branch: {e}")
-            await callback.message.edit_text("Произошла ошибка при отправке заявки. Попробуйте снова.")
+            logger.error(f"Error processing request: {e}")
+            await callback.message.edit_text("Ошибка при отправке заявки. Попробуйте снова.")
+        finally:
+            await state.finish()
     elif callback.data == "yes_support":
         await callback.message.edit_text("Пожалуйста, отправьте файл или фото.")
         await state.set_state(user_state.SupportStates.GET_FILE_UPLOAD.state)
