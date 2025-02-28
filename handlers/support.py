@@ -18,13 +18,11 @@ CONSENT_TEXT = (
     "[Политика в отношении обработки и защиты персональных данных]"
     "(https://platform-eadsc.voskhod.ru/docs_back/personal_data_processing_policy.pdf)"
 )
-
 def create_consent_keyboard():
     return InlineKeyboardMarkup(row_width=2).add(
         InlineKeyboardButton("✅ Согласен", callback_data="consent_yes"),
         InlineKeyboardButton("❌ Отмена", callback_data="cancel")
     )
-
 
 # Уведомление администратору
 async def send_admin_notification(bot, user_data, user_id, username, problem):
@@ -39,6 +37,26 @@ async def send_admin_notification(bot, user_data, user_id, username, problem):
     keyboard = InlineKeyboardMarkup(row_width=1)
     keyboard.add(InlineKeyboardButton("✉️ Ответить", callback_data=f"reply_{user_id}"))
     await bot.send_message(ADMIN_ID, admin_text, reply_markup=keyboard)
+
+# Отправка email
+async def send_confirmation_email(user_data, user_id, username, problem):
+    email_text = (
+        f"Пользователь оставил запрос в техническую поддержку через чат.<br><br>"
+        f"Имя: <b>{user_data['name']}</b><br>"
+        f"Email: <b>{user_data['email']}</b><br>"
+        f"ID пользователя: <b>{user_id}</b><br>"
+        f"Ссылка в tg: <b>https://t.me/{username or 'Не_указан'}</b><br>"
+        f"Текст обращения: <b>{problem}</b>"
+    )
+    try:
+        send_email("Вопрос от пользователя через чат ГИС “Платформа “ЦХЭД”", body=email_text, is_html=True)
+        logging.info("Email sent")
+    except Exception as e:
+        logging.error(f"Email sending error: {e}")
+
+
+
+
 
 # Начало заполнения заявки
 async def start_support(message: types.Message, state: FSMContext):
@@ -125,19 +143,8 @@ async def handle_file_choice(callback: types.CallbackQuery, state: FSMContext):
             )
 
             # Отправка email
-            email_text = (
-                f"Пользователь оставил запрос в техническую поддержку через чат.<br><br>"
-                f"Имя: <b>{name}</b><br>"
-                f"Email: <b>{email}</b><br>"
-                f"ID пользователя: <b>{user_id}</b><br>"
-                f"Ссылка в tg: <b>https://t.me/{username if username else 'Не_указан'}</b><br>"
-                f"Текст обращения: <b>{problem}</b>"
-            )
-            try:
-                send_email("Вопрос от пользователя через чат ГИС “Платформа “ЦХЭД”", body=email_text, is_html=True)
-                logging.info("Email sent")
-            except Exception as e:
-                logging.error(f"Email sending error: {e}")
+            await send_confirmation_email(user_data, user_id, username, problem)
+
 
             # Ответ пользователю
             await callback.message.edit_text("Ваша заявка отправлена. Спасибо!")
