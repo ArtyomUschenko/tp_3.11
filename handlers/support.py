@@ -25,6 +25,21 @@ def create_consent_keyboard():
         InlineKeyboardButton("❌ Отмена", callback_data="cancel")
     )
 
+
+# Уведомление администратору
+async def send_admin_notification(bot, user_data, user_id, username, problem):
+    admin_text = (
+        "🚨 Новая заявка в поддержку!\n"
+        f"👤 Пользователь: {user_id}\n"
+        f"👤 Ссылка в tg: @{username or 'Не указан'}\n"
+        f"📛 Имя: {user_data['name']}\n"
+        f"📧 Email: {user_data['email']}\n"
+        f"📝 Сообщение:\n{problem}"
+    )
+    keyboard = InlineKeyboardMarkup(row_width=1)
+    keyboard.add(InlineKeyboardButton("✉️ Ответить", callback_data=f"reply_{user_id}"))
+    await bot.send_message(ADMIN_ID, admin_text, reply_markup=keyboard)
+
 # Начало заполнения заявки
 async def start_support(message: types.Message, state: FSMContext):
     # Отправляем сообщение с HTML-форматированием
@@ -101,22 +116,13 @@ async def handle_file_choice(callback: types.CallbackQuery, state: FSMContext):
 
 
             # Уведомление администратору
-            admin_text = (
-                "🚨 Новая заявка в поддержку!\n"
-                f"👤 Пользователь: {user_id}\n"
-                f"👤 Ссылка в tg: @{username if username else 'Не указан'}\n"
-                f"📛 Имя: {name}\n"
-                f"📧 Email: {email}\n"
-                f"📝 Сообщение:\n{problem}"
+            await send_admin_notification(
+                callback.message.bot,
+                user_data,
+                user_id,
+                username,
+                problem
             )
-            keyboard1 = InlineKeyboardMarkup(row_width=1)
-            keyboard1.add(InlineKeyboardButton("✉️ Ответить", callback_data=f"reply_{user_id}"))
-
-            try:
-                await callback.message.bot.send_message(chat_id=ADMIN_ID, text=admin_text, reply_markup=keyboard1)
-                logging.info("Admin notified")
-            except Exception as e:
-                logging.error(f"Ошибка отправки уведомления админу: {e}")
 
             # Отправка email
             email_text = (
