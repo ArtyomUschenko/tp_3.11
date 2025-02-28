@@ -19,17 +19,16 @@ CONSENT_TEXT = (
     "(https://platform-eadsc.voskhod.ru/docs_back/personal_data_processing_policy.pdf)"
 )
 
-
-# Начало заполнения заявки
-async def start_support(message: types.Message, state: FSMContext):
-    consent_keyboard = InlineKeyboardMarkup(row_width=2)
-    consent_keyboard.add(
+def create_consent_keyboard():
+    return InlineKeyboardMarkup(row_width=2).add(
         InlineKeyboardButton("✅ Согласен", callback_data="consent_yes"),
         InlineKeyboardButton("❌ Отмена", callback_data="cancel")
     )
 
+# Начало заполнения заявки
+async def start_support(message: types.Message, state: FSMContext):
     # Отправляем сообщение с HTML-форматированием
-    await message.answer(CONSENT_TEXT, reply_markup=consent_keyboard, parse_mode=types.ParseMode.MARKDOWN)
+    await message.answer(CONSENT_TEXT, reply_markup=create_consent_keyboard(), parse_mode=types.ParseMode.MARKDOWN)
     await state.set_state(user_state.SupportStates.GET_CONSENT.state)  # Устанавливаем новое состояние
 
 
