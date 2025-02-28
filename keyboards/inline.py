@@ -22,3 +22,7 @@ def get_yes_no_keyboard_support():
     ikb.add(ib1, ib2)
     return ikb
 
+def  cancel_keyboard_support():
+    keyboard = InlineKeyboardMarkup(row_width=1)
+    keyboard.insert(InlineKeyboardButton("❌ Отмена", callback_data="cancel"))
+    return keyboard

@@ -75,9 +75,6 @@ async def save_to_database(user_id, user_data, username, problem, document_path=
     finally:
         await conn.close()
 
-
-
-
 # Начало заполнения заявки
 async def start_support(message: types.Message, state: FSMContext):
     # Отправляем сообщение с HTML-форматированием
@@ -87,17 +84,11 @@ async def start_support(message: types.Message, state: FSMContext):
 
 async def handle_consent(callback: types.CallbackQuery, state: FSMContext):
     if callback.data == "consent_yes":
-        cancel_keyboard = InlineKeyboardMarkup(row_width=1)
-        cancel_keyboard.add(InlineKeyboardButton("❌ Отмена", callback_data="cancel"))
-
-        await callback.message.edit_text("Пожалуйста, введите ваше имя:", reply_markup=cancel_keyboard)
+        await callback.message.edit_text("Пожалуйста, введите ваше имя:", reply_markup=inline.cancel_keyboard_support())
         await state.set_state(user_state.SupportStates.GET_NAME.state)
-
-    elif callback.data == "cancel":
-        await state.finish()
-        await callback.message.edit_text("Операция отменена.")
-
-    await callback.answer()
+    else:
+        await cancel_handler(callback, state)
+        await callback.answer()
 
 async def get_name(message: types.Message, state: FSMContext):
     await state.update_data(name=message.text)
