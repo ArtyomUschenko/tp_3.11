@@ -4,7 +4,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from utils.email_sender import send_email
 from utils.valid_email import is_valid_email
 from utils.database import create_connection
-from date.config  import ADMIN_ID
+from date.config  import ADMIN_ID, ADMIN_IDS
 from states import user_state, admin_state
 from keyboards import inline
 import logging
@@ -39,11 +39,12 @@ async def send_admin_notification(bot, user_data, user_id, username, problem):
     )
     keyboard = InlineKeyboardMarkup(row_width=1)
     keyboard.add(InlineKeyboardButton("✉️ Ответить", callback_data=f"reply_{user_id}"))
-    try:
-        await bot.send_message(ADMIN_ID, admin_text, reply_markup=keyboard)
-        logging.info("Уведомление администратору отправлено")
-    except Exception as e:
-        logging.error(f"Уведомление не отправлено администратору: {e}")
+    for admin in ADMIN_IDS:
+        try:
+            await bot.send_message(admin, admin_text, reply_markup=keyboard)
+            logging.info("Уведомление администратору отправлено")
+        except Exception as e:
+            logging.error(f"Уведомление не отправлено администратору: {e}")
 
 # Отправка email
 async def send_confirmation_email(user_data, user_id, username, problem):
