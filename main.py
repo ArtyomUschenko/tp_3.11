@@ -40,6 +40,7 @@ dp.register_callback_query_handler(callback_admin.skip_email,lambda c: c.data ==
 dp.register_callback_query_handler(callback_admin.cancel_handler, lambda c: c.data == "cancel", state="*")
 dp.register_message_handler(callback_admin.get_forwarded_email,state=user_state.SupportStates.GET_EMAIL_FORWARDED)
 dp.register_callback_query_handler(support.start_support, lambda c: c.data == "start_support")
+dp.register_callback_query_handler(support.handle_admin_callback,lambda c: c.data.startswith(("reply_", "view_")))
 dp.register_callback_query_handler(support.handle_consent, lambda c: c.data in ["consent_yes", "cancel"], state=user_state.SupportStates.GET_CONSENT)
 dp.register_callback_query_handler(support.handle_file_choice, state=user_state.SupportStates.GET_FILE)
 

@@ -192,7 +192,20 @@ async def handle_admin_reply(message: types.Message, state: FSMContext):
 
 
 
+# Обработчики кнопок
+async def handle_admin_callback(callback: types.CallbackQuery, state: FSMContext):
+    action, data = callback.data.split("_")
 
+    if action == "reply":
+        await state.update_data(target_user_id=data)
+        await callback.message.answer("Введите ваш ответ:")
+        await admin_state.AdminStates.WAITING_FOR_REPLY.set()
+
+    elif action == "view":
+        # Здесь можно добавить логику просмотра заявки из БД
+        await callback.answer("Заявка будет показана здесь", show_alert=True)
+
+    await callback.answer()
 
 
 
