@@ -21,10 +21,7 @@ def send_email(subject: str, body: str, is_html: bool = False, attachments: list
     msg["To"] = EMAIL_RECEIVER
 
     # Добавляем тело письма
-    if is_html:
-        msg.attach(MIMEText(body, "html"))
-    else:
-        msg.attach(MIMEText(body, "plain"))
+    msg.attach(MIMEText(body, "html" if is_html else "plain"))
 
     # Прикрепляем файлы, если они есть
     if attachments:

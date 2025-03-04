@@ -14,12 +14,9 @@ from aiogram import types
 
 
 # Настройка логгирования
-logging.basicConfig(
-    level=logging.INFO)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 logger = logging.LoggerAdapter(logger, {"app": "тестовое приложение"})
-logger.info("Программа стартует")
-logger.info("Программа завершила работу")
 
 # Иницилизация бота
 bot =Bot(TELEGRAM_TOKEN)
@@ -48,10 +45,12 @@ dp.register_callback_query_handler(support.handle_file_choice, lambda c: c.data 
 
 # Уведомление об остановки бота
 async def on_shutdown(app):
+    logger.info("Программа завершает работу")
     await on_shutdown_notify(dp)
 
 # Инициализация базы данных при запуске
 async def on_startup(dp):
+    logger.info("Программа стартует")
     await set_default_commands(dp)
     await on_startup_notify(dp)
     await create_tables()
