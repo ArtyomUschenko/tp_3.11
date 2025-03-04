@@ -283,16 +283,57 @@ async def handle_admin_reply(message: types.Message, state: FSMContext) -> None:
 
 # Общие обработчики
 async def back_handler(callback: types.CallbackQuery, state: FSMContext) -> None:
-    """Обрабатывает кнопку 'Назад'."""
-    state_mapping = {
-        user_state.SupportStates.GET_EMAIL: ("Пожалуйста, введите ваше имя:", user_state.SupportStates.GET_NAME),
-        user_state.SupportStates.GET_MESSAGE: ("Введите ваш email:", user_state.SupportStates.GET_EMAIL)
-    }
+    """
+    Обрабатывает нажатие кнопки "Назад".
+    Возвращает пользователя на предыдущий шаг заполнения формы.
+    """
     current_state = await state.get_state()
-    if current_state in state_mapping:
-        text, new_state = state_mapping[current_state]
-        await callback.message.edit_text(text, reply_markup=inline.get_back_cancel_keyboard())
-        await new_state.set()
+    logger.info(f"Обработка кнопки 'Назад' из состояния: {current_state}")
+
+    # Маппинг состояний и их обработчиков
+    state_handlers = {
+        'SupportStates:GET_EMAIL': {
+            'target_state': user_state.SupportStates.GET_NAME,
+            'message': "Пожалуйста, введите ваше имя:",
+            'keyboard': inline.cancel_keyboard_support()
+        },
+        'SupportStates:GET_MESSAGE': {
+            'target_state': user_state.SupportStates.GET_EMAIL,
+            'message': "Введите ваш email:",
+            'keyboard': inline.get_back_cancel_keyboard()
+        },
+        'SupportStates:GET_FILE': {
+            'target_state': user_state.SupportStates.GET_MESSAGE,
+            'message': "Опишите вашу проблему:",
+            'keyboard': inline.get_back_cancel_keyboard()
+        }
+    }
+
+    try:
+        if current_state in state_handlers:
+            handler = state_handlers[current_state]
+            # Сохраняем текущие данные
+            current_data = await state.get_data()
+            # Устанавливаем новое состояние
+            await handler['target_state'].set()
+            # Восстанавливаем данные в новом состоянии
+            await state.update_data(**current_data)
+            # Обновляем сообщение
+            await callback.message.edit_text(
+                handler['message'],
+                reply_markup=handler['keyboard']
+            )
+            logger.info(f"Переход из {current_state} в состояние: {handler['target_state'].state}")
+        else:
+            logger.warning(f"Неожиданное состояние для кнопки 'Назад': {current_state}")
+            await callback.answer("Действие недоступно в текущем состоянии")
+            return
+
+    except Exception as e:
+        logger.error(f"Ошибка при обработке кнопки 'Назад': {e}")
+        await callback.answer("Произошла ошибка. Попробуйте отменить и начать заново.")
+        return
+
     await callback.answer()
 
 
