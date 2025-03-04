@@ -202,14 +202,33 @@ async def get_name(message: types.Message, state: FSMContext) -> None:
 
 
 async def get_email(message: types.Message, state: FSMContext) -> None:
-    """Получает email пользователя."""
-    if not is_valid_email(message.text):
-        await message.answer("Некорректный email. Пожалуйста, введите email еще раз.")
-        return
-    await state.update_data(email=message.text)
-    await message.answer("Опишите вашу проблему:", reply_markup=inline.get_back_cancel_keyboard())
-    await state.set_state(user_state.SupportStates.GET_MESSAGE)
+    try:
+        # Проверяем email на корректность
+        is_valid, error_message = is_valid_email(message.text)
 
+        if not is_valid:
+            logger.info(f"Некорректный email: {message.text}. Причина: {error_message}")
+            await message.answer(
+                f"❌ {error_message}\nПожалуйста, введите корректный email:",
+                reply_markup=inline.get_back_cancel_keyboard()
+            )
+            return
+
+        # Если email корректный, сохраняем его и переходим к следующему шагу
+        logger.info(f"Email прошел валидацию: {message.text}")
+        await state.update_data(email=message.text.strip().lower())
+        await message.answer(
+            "Опишите вашу проблему:",
+            reply_markup=inline.get_back_cancel_keyboard()
+        )
+        await state.set_state(user_state.SupportStates.GET_MESSAGE)
+
+    except Exception as e:
+        logger.error(f"Ошибка при обработке email: {e}")
+        await message.answer(
+            "Произошла ошибка при проверке email. Пожалуйста, попробуйте еще раз:",
+            reply_markup=inline.get_back_cancel_keyboard()
+        )
 
 async def get_message(message: types.Message, state: FSMContext) -> None:
     """Получает описание проблемы."""
