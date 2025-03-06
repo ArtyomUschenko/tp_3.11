@@ -10,7 +10,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from utils.email_sender import send_email
 from utils.valid_email import is_valid_email
 from utils.database import create_connection
-from date.config import ADMIN_IDS, TELEGRAM_TOKEN
+from date.config import ADMIN_IDS, TELEGRAM_TOKEN, EMAIL_RECEIVER
 from states import user_state, admin_state
 from keyboards import inline
 
@@ -100,7 +100,7 @@ async def send_email_confirmation(user_data: dict, user_id: int, username: str, 
     )
     attachments = [document_path] if document_path else None
     try:
-        send_email("Вопрос от пользователя через чат ГИС “Платформа “ЦХЭД”", body=email_text, is_html=True,
+        send_email("Вопрос от пользователя через чат ГИС “Платформа “ЦХЭД”", body=email_text, to_emails=EMAIL_RECEIVER, is_html=True,
                    attachments=attachments)
         logger.info("Email с подтверждением отправлен")
     except Exception as e:

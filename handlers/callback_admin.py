@@ -5,7 +5,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from utils.email_sender import send_email
 from utils.database import create_connection
 from utils.valid_email import is_valid_email
-from date.config import ADMIN_IDS, TELEGRAM_TOKEN
+from date.config import ADMIN_IDS, TELEGRAM_TOKEN, EMAIL_RECEIVER
 import logging
 import os, re
 from aiogram.utils.exceptions import TelegramAPIError
@@ -214,6 +214,7 @@ async def process_forwarded_request(message: types.Message, state: FSMContext):
         send_email(
             subject="Вопрос от пользователя через чат ГИС “Платформа “ЦХЭД”",
             body=email_text,
+            to_emails=EMAIL_RECEIVER,
             is_html=True,
             attachments=attachments
         )
