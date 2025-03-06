@@ -5,7 +5,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from utils.email_sender import send_email
 from utils.database import create_connection
 from utils.valid_email import is_valid_email
-from date.config import ADMIN_ID, ADMIN_IDS, TELEGRAM_TOKEN
+from date.config import ADMIN_IDS, TELEGRAM_TOKEN
 import logging
 import os, re
 from aiogram.utils.exceptions import TelegramAPIError
@@ -249,7 +249,7 @@ bot = Bot(token=TELEGRAM_TOKEN)
 
 
 async def download_file(file_id: str, file_type: str, original_name: str = None) -> str:
-    """Скачивает и сохраняет файл из Telegram с правильным именем"""
+    #Скачивает и сохраняет файл из Telegram с правильным именем
     try:
         # Генерируем временную метку
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")

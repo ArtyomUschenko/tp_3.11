@@ -1,5 +1,27 @@
 #!/bin/bash
 
+# Сделайте скрипт исполняемым: chmod +x install_bot.sh
+
+#/path/to/installation/
+#├── install_bot.sh
+#├── bot_files.tar.gz
+#│   ├── pip_venv/
+#│   │   └── *.deb
+#│   ├── pack/
+#│   │   └── [python packages]
+#│   ├── docker_debs/
+#│   │   └── *.deb
+#│   ├── docker-images/
+#│   │   ├── postgres.tar
+#│   │   ├── pgadmin4-7.2.tar
+#│   │   └── postgres-exporter.tar
+#│   ├── main.py
+#│   ├── docker-compose.yml
+#│   └── .env
+
+#Запуск скрипта: ./install_bot.sh
+
+
 # Цвета для вывода
 RED='\033[0;31m'
 GREEN='\033[0;32m'

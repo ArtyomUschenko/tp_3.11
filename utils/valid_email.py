@@ -4,17 +4,7 @@ from typing import Tuple
 
 logger = logging.getLogger(__name__)
 
-
 def is_valid_email(email: str) -> Tuple[bool, str]:
-    """
-    Проверяет корректность email адреса.
-
-    Args:
-        email: Проверяемый email адрес
-
-    Returns:
-        Tuple[bool, str]: (результат проверки, сообщение об ошибке)
-    """
     # Проверка на пустое значение
     if not email or not email.strip():
         return False, "Email не может быть пустым"

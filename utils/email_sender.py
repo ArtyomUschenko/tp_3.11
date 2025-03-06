@@ -6,7 +6,6 @@ from email.mime.base import MIMEBase
 from email import encoders
 import logging
 import os
-from email.header import Header
 from email.utils import encode_rfc2231
 from typing import Optional, List
 
@@ -14,25 +13,13 @@ from typing import Optional, List
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
 def send_email(
         subject: str,
         body: str,
         is_html: bool = False,
         attachments: Optional[List[str]] = None
 ) -> bool:
-    """
-    Отправляет email с вложениями.
-
-    Args:
-        subject: Тема письма
-        body: Текст письма
-        is_html: Флаг HTML-формата
-        attachments: Список путей к файлам-вложениям
-
-    Returns:
-        bool: Успешность отправки
-    """
+    # Отправляем email с вложениями
     try:
         msg = MIMEMultipart()
         msg["Subject"] = subject
@@ -63,7 +50,7 @@ def send_email(
 
 
 def attach_file(msg: MIMEMultipart, file_path: str) -> None:
-    """Добавляет файл к письму."""
+    # Добавляем вложение к письму
     try:
         with open(file_path, 'rb') as f:
             part = MIMEBase('application', 'octet-stream')

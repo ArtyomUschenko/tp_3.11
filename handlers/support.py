@@ -3,12 +3,10 @@ import re
 import logging
 import datetime
 import aiohttp
-from typing import Optional, Tuple
+from typing import Optional
 from aiogram import types, Bot
 from aiogram.dispatcher import FSMContext
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-
-# from main import dp
 from utils.email_sender import send_email
 from utils.valid_email import is_valid_email
 from utils.database import create_connection
@@ -33,25 +31,23 @@ logger = logging.getLogger(__name__)
 # Инициализация бота
 bot = Bot(token=TELEGRAM_TOKEN)
 
-
 # Утилиты
 def create_consent_keyboard() -> InlineKeyboardMarkup:
-    """Создает клавиатуру для согласия на обработку данных."""
+    # Создает клавиатуру с вариантами согласия на обработку данных
     return InlineKeyboardMarkup(row_width=2).add(
         InlineKeyboardButton("✅ Согласен", callback_data="consent_yes"),
         InlineKeyboardButton("❌ Отмена", callback_data="cancel")
     )
 
-
 def sanitize_filename(filename: str) -> str:
-    """Очищает имя файла от запрещенных символов."""
+    # Очищает имя файла от недопустимых символов
     return re.sub(r'[\\/*?:"<>|]', "_", filename)
 
 
 # Обработка данных
 async def save_support_request(user_id: int, user_data: dict, username: str, problem: str,
                                document_path: Optional[str] = None) -> None:
-    """Сохраняет заявку в базу данных."""
+    # Сохраняет данные в базу данных
     conn = await create_connection()
     try:
         await conn.execute(
@@ -68,7 +64,7 @@ async def save_support_request(user_id: int, user_data: dict, username: str, pro
 
 async def notify_admins(bot: Bot, user_data: dict, user_id: int, username: str, problem: str,
                         document_path: Optional[str] = None) -> None:
-    """Отправляет уведомление всем администраторам."""
+    # Уведомляет администраторов о новой заявке
     admin_text = (
         f"🚨 Новая заявка в поддержку!\n"
         f"👤 Пользователь: {user_id}\n"
@@ -93,7 +89,7 @@ async def notify_admins(bot: Bot, user_data: dict, user_id: int, username: str, 
 
 async def send_email_confirmation(user_data: dict, user_id: int, username: str, problem: str,
                                   document_path: Optional[str] = None) -> None:
-    """Отправляет email с подтверждением."""
+    # Отправляет email с подтверждением заявки
     email_text = (
         f"Пользователь оставил запрос в техническую поддержку через чат.<br><br>"
         f"Имя: <b>{user_data['name']}</b><br>"
@@ -113,7 +109,7 @@ async def send_email_confirmation(user_data: dict, user_id: int, username: str, 
 
 
 async def download_file(file_id: str, file_type: str, original_name: Optional[str] = None) -> Optional[str]:
-    """Скачивает файл из Telegram и возвращает путь к нему."""
+    # Скачивает файл из Telegram и сохраняет его локально
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     try:
         file = await bot.get_file(file_id)
@@ -147,7 +143,7 @@ async def download_file(file_id: str, file_type: str, original_name: Optional[st
 
 # Обработка заявок
 async def process_support_request(message_or_callback: types.Message | types.CallbackQuery, state: FSMContext) -> None:
-    """Обрабатывает заявку пользователя."""
+    # Обрабатывает заявку на поддержку
     user_data = await state.get_data()
     user_id = message_or_callback.from_user.id
     username = message_or_callback.from_user.username
@@ -177,7 +173,7 @@ async def process_support_request(message_or_callback: types.Message | types.Cal
 
 # Обработчики пользовательских действий
 async def start_support(callback: types.CallbackQuery, state: FSMContext) -> None:
-    """Начинает процесс заполнения заявки."""
+    # Начинает процесс заполнения заявки
     await callback.answer()
     await callback.message.answer(CONSENT_TEXT, reply_markup=create_consent_keyboard(),
                                   parse_mode=types.ParseMode.MARKDOWN)
@@ -185,7 +181,7 @@ async def start_support(callback: types.CallbackQuery, state: FSMContext) -> Non
 
 
 async def handle_consent(callback: types.CallbackQuery, state: FSMContext) -> None:
-    """Обрабатывает согласие пользователя."""
+    # Обрабатывает выбор пользователя по согласию на обработку данных
     if callback.data == "consent_yes":
         await callback.message.edit_text("Пожалуйста, введите ваше имя:", reply_markup=inline.cancel_keyboard_support())
         await state.set_state(user_state.SupportStates.GET_NAME)
@@ -195,7 +191,7 @@ async def handle_consent(callback: types.CallbackQuery, state: FSMContext) -> No
 
 
 async def get_name(message: types.Message, state: FSMContext) -> None:
-    """Получает имя пользователя."""
+    # Получает имя пользователя и переходит к следующему шагу
     await state.update_data(name=message.text)
     await message.answer("Введите ваш email:", reply_markup=inline.get_back_cancel_keyboard())
     await state.set_state(user_state.SupportStates.GET_EMAIL)
@@ -231,14 +227,14 @@ async def get_email(message: types.Message, state: FSMContext) -> None:
         )
 
 async def get_message(message: types.Message, state: FSMContext) -> None:
-    """Получает описание проблемы."""
+    # Получает сообщение пользователя и переходит к следующему шагу
     await state.update_data(problem=message.text)
     await message.answer("Хотите прикрепить файл к заявке?", reply_markup=inline.get_yes_no_keyboard_support())
     await state.set_state(user_state.SupportStates.GET_FILE)
 
 
 async def handle_file_choice(callback: types.CallbackQuery, state: FSMContext) -> None:
-    """Обрабатывает выбор пользователя по прикреплению файла."""
+    # Обрабатывает выбор пользователя по прикреплению файла
     if callback.data == "no_support":
         await process_support_request(callback, state)
     else:
@@ -248,7 +244,7 @@ async def handle_file_choice(callback: types.CallbackQuery, state: FSMContext) -
 
 
 async def upload_file(message: types.Message, state: FSMContext) -> None:
-    """Обрабатывает загрузку файла пользователем."""
+    # Обрабатывает загрузку файла от пользователя
     logger.info(f"Получено сообщение в состоянии GET_FILE_UPLOAD от {message.from_user.id}")
 
     if message.document:
@@ -275,7 +271,7 @@ async def upload_file(message: types.Message, state: FSMContext) -> None:
 
 # Обработчики администратора
 async def handle_admin_callback(callback: types.CallbackQuery, state: FSMContext) -> None:
-    """Обрабатывает действия администратора."""
+    # Обрабатывает запросы от администратора
     action, data = callback.data.split("_")
     if action == "reply":
         await state.update_data(target_user_id=data)
@@ -287,7 +283,7 @@ async def handle_admin_callback(callback: types.CallbackQuery, state: FSMContext
 
 
 async def handle_admin_reply(message: types.Message, state: FSMContext) -> None:
-    """Отправляет ответ пользователю от администратора."""
+    # Обрабатывает ответ администратора на заявку
     user_data = await state.get_data()
     target_user_id = user_data.get("target_user_id")
     try:
@@ -302,10 +298,7 @@ async def handle_admin_reply(message: types.Message, state: FSMContext) -> None:
 
 # Общие обработчики
 async def back_handler(callback: types.CallbackQuery, state: FSMContext) -> None:
-    """
-    Обрабатывает нажатие кнопки "Назад".
-    Возвращает пользователя на предыдущий шаг заполнения формы.
-    """
+    # Обрабатывает кнопку "Назад"
     current_state = await state.get_state()
     logger.info(f"Обработка кнопки 'Назад' из состояния: {current_state}")
 
@@ -357,7 +350,7 @@ async def back_handler(callback: types.CallbackQuery, state: FSMContext) -> None
 
 
 async def cancel_handler(callback: types.CallbackQuery, state: FSMContext) -> None:
-    """Обрабатывает отмену действия."""
+    # Обрабатывает кнопку "Отмена"
     await state.finish()
     await callback.message.edit_text("Операция отменена.")
     await callback.message.answer("Используйте команду /start, чтобы отправить заявку в техническую поддержку.")

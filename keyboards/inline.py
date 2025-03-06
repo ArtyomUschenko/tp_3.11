@@ -7,7 +7,6 @@ def get_back_cancel_keyboard():
     keyboard.insert(InlineKeyboardButton("⬅️ Назад", callback_data="back"))
     return keyboard
 
-
 def get_keyboard_start_menu() -> InlineKeyboardMarkup:
     ikb = InlineKeyboardMarkup(row_width=1)
     ib1 = InlineKeyboardButton('🆘 Оставить заявку', callback_data='start_support')

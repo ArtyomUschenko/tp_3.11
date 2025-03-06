@@ -15,7 +15,7 @@ async def create_connection():
 # Добавляем контекстный менеджер для соединения с БД
 @asynccontextmanager
 async def get_connection():
-    """Контекстный менеджер для работы с БД."""
+    # Контекстный менеджер для работы с БД
     conn = await create_connection()
     try:
         yield conn
@@ -24,7 +24,6 @@ async def get_connection():
 
 #Создает таблицы в базе данных, если они не существуют
 async def create_tables():
-    """Создает необходимые таблицы в БД."""
     async with get_connection() as conn:
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS support_requests (
